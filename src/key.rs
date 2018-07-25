@@ -18,7 +18,7 @@
 use std::marker;
 use arrayvec::ArrayVec;
 use rand::Rng;
-use serialize::{Decoder, Decodable, Encoder, Encodable};
+use serialize::{Decoder, Decodable, Encoder, Encodable, hex::{ToHex}};
 use serde::{Serialize, Deserialize, Serializer, Deserializer};
 
 use super::{Secp256k1, ContextFlag};

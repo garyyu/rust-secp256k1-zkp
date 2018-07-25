@@ -31,6 +31,7 @@ use key::{self, SecretKey, PublicKey};
 use super::{Message, Signature};
 use rand::{Rng, OsRng};
 use serde::{ser, de};
+use serialize::hex::{ToHex};
 use std::ptr;
 
 const MAX_WIDTH:usize = 1 << 20;
