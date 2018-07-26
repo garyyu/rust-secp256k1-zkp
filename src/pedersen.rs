@@ -27,12 +27,11 @@ use Secp256k1;
 
 use constants;
 use ffi;
-use key::{self, SecretKey, PublicKey};
+use key::{self, SecretKey};
 use super::{Message, Signature};
 use rand::{Rng, OsRng};
 use serde::{ser, de};
 use serialize::hex::{ToHex};
-use std::ptr;
 
 const MAX_WIDTH:usize = 1 << 20;
 
@@ -843,13 +842,14 @@ impl Secp256k1 {
 
 #[cfg(test)]
 mod tests {
+
+
     use super::{Commitment, RangeProof, ProofMessage, Message, Secp256k1};
     use ContextFlag;
     use key::{ONE_KEY, ZERO_KEY, SecretKey};
 
     use rand::os::OsRng;
 	use rand::{Rng, thread_rng};
-
 
     #[test]
     fn test_verify_commit_sum_zero_keys() {
