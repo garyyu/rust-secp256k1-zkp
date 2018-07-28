@@ -2,14 +2,15 @@
 
 ### rust-secp256k1
 
-This is a rust wrapper around [secp256k1: https://github.com/bitcoin/secp256k1](https://github.com/bitcoin/secp256k1).
+This is a rust wrapper around **secp256k1**.
 
-`secp256k1` is a Optimized C library for EC operations on curve secp256k1, its [main contributors](https://github.com/bitcoin/secp256k1/graphs/contributors) include:
+`secp256k1` is an actively maintained optimized C library for EC(Elliptic Curve) operations on curve secp256k1, the [main contributors](https://github.com/bitcoin/secp256k1/graphs/contributors) include:
 * [Peter Wuille](https://www.linkedin.com/in/pieterwuille), Co-founder and Core Tech Engineer of Blockstream. 
-* [Gregory Maxwell](https://github.com/gmaxwell), a Bitcoin Core developer, Co-Founder and CTO of Blockstream ([resigned](https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-January/015586.html) from Blockstream 2017 Nov.).
+* [Gregory Maxwell](https://github.com/gmaxwell), Bitcoin Core developer, Co-Founder and CTO of Blockstream ([resigned](https://lists.linuxfoundation.org/pipermail/bitcoin-dev/2018-January/015586.html) from Blockstream 2017 Nov.).
 * [Andrew Poelstra](https://www.linkedin.com/in/andrew-poelstra-958a75106/), Mathematician at Blockstream.
-* and all other around fifty contributors.
-`secp256k1` is still actively maintained.
+* And all other around fifty contributors.
+
+You can find more detail about it on [https://github.com/bitcoin/secp256k1](https://github.com/bitcoin/secp256k1).
 
 
 This Rust library:
@@ -20,7 +21,7 @@ This Rust library:
 * makes no allocations (except in unit tests) for efficiency and use in freestanding implementations
 
 ### Documents
-* [Rustdoc of Crate _secp256k1_](https://www.wpsoftware.net/rustdoc/secp256k1/)
-* [Wiki of This Library](https://github.com/garyyu/rust-secp256k1-zkp/wiki)
+* [Rustdoc of crate secp256k1](https://www.wpsoftware.net/rustdoc/secp256k1/)
+* [Wiki of this library](https://github.com/garyyu/rust-secp256k1-zkp/wiki)
 
 
