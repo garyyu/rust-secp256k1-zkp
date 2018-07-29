@@ -86,18 +86,7 @@ mod tests {
                 blinding = ONE_KEY;
             }
 
-            let v :u64;
-            if value >= 0{
-                v = value as u64;
-                secp.commit(v, blinding).unwrap()
-            }else{
-                v = -value as u64;
-                if blinding != ZERO_KEY {
-                    blinding = secp.blind_sum(vec![], vec![blinding]).unwrap();
-                }
-                let commit = secp.commit(v, blinding).unwrap();
-                secp.commit_sum(vec![], vec![commit]).unwrap()
-            }
+            secp.commit_i(value, blinding).unwrap()
         }
 
         let commit_1 = commit(-5, false);
@@ -723,20 +712,8 @@ mod tests {
 
         fn commit(value: i64, blinding: SecretKey) -> Commitment {
             let secp = Secp256k1::with_caps(ContextFlag::Commit);
-            let v: u64;
-            let mut blind = blinding;
 
-            if value >= 0 {
-                v = value as u64;
-                secp.commit(v, blind).unwrap()
-            } else {
-                v = -value as u64;
-                if blind != ZERO_KEY {
-                    blind = secp.blind_sum(vec![], vec![blind]).unwrap();
-                }
-                let commit = secp.commit(v, blind).unwrap();
-                secp.commit_sum(vec![], vec![commit]).unwrap()
-            }
+            secp.commit_i(value, blinding).unwrap()
         }
 
         let mut r1 = SecretKey([0;32]);
