@@ -54,6 +54,28 @@ mod tests {
     }
 
     #[test]
+    fn test_pedersen_zero_r_max_v() {
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+
+        fn commit(value: u64) -> Commitment {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            let blinding = ZERO_KEY;
+            secp.commit(value, blinding).unwrap()
+        }
+
+        let commit_1 = commit(<u64>::max_value());
+        let commit_2 = commit(1);
+
+        let sum12 = secp.commit_sum(vec![commit_1, commit_2], vec![]).unwrap();
+
+        println!("0*G+3*H:\t{:?}\n0*G+2*H:\t{:?}\nsum:\t\t{:?}",
+                 commit_1,
+                 commit_2,
+                 sum12,
+        );
+    }
+
+    #[test]
     fn test_pedersen_zero_v() {
 
         fn commit(blinding: SecretKey) -> Commitment {
@@ -612,6 +634,86 @@ mod tests {
             println!("\ntotal sum balance verify OK:\toutput1 + output2 + output3 + output4 = input1 + input2 + excess1 + excess2 + sum(k2)*G");
         }else{
             println!("\ntotal sum balance verify NOK:\toutput1 + output2 + output3 + output4 = input1 + input2 + excess1 + excess2 + sum(k2)*G");
+        }
+    }
+
+    #[test]
+    fn test_demo_fraud_transactions() {
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+
+        fn commit(value: u64, blinding: SecretKey) -> Commitment {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            secp.commit(value, blinding).unwrap()
+        }
+
+        let mut r1 = SecretKey([0;32]);
+        let mut r2 = SecretKey([0;32]);
+        let mut r3 = SecretKey([0;32]);
+
+        r1.0[31] = 113;     // input
+        r3.0[31] = 42;      // for change
+        r2.0[31] = 113-42;  // total blinding factor from sender
+
+        // split original r=28 into k1+k2
+        let mut k1 = SecretKey([0;32]);
+        let mut k2 = SecretKey([0;32]);
+        k1.0[31] = 13;
+        k2.0[31] = 15;
+
+        let input = commit(3, r1);
+        let output1 = commit(103, secp.blind_sum(vec![r2, k1, k2], vec![]).unwrap());
+        let output2 = commit(<u64>::max_value()-100+1, r3);
+        let tmp = commit(103, secp.blind_sum(vec![r2, k1], vec![]).unwrap());
+
+        // publish k1*G as excess and k2, instead of (k1+k2)*G
+        let excess = secp.commit_sum(vec![tmp, output2], vec![input]).unwrap();
+
+        println!("  input=113*G+3*H:\t{:?}\noutput1= 99*G+103*H:\t{:?}\noutput2= 42*G-100*H:\t{:?}",
+                 input,
+                 output1,
+                 output2,
+        );
+
+        // sign it only with k1 instead of (k1+k2)
+
+        let mut msg = [0u8; 32];
+        thread_rng().fill_bytes(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+
+        let sig = secp.sign(&msg, &k1).unwrap();
+
+        let pubkey = excess.to_pubkey(&secp).unwrap();
+
+        println!("\n\tmsg:\t\t{:?}\n\texcess w/ k1*G:\t{:?}\n\tSignature:\t{:?}\n\tk2:\t\t{:?}",
+                 msg,
+                 excess,
+                 sig,
+                 k2,
+        );
+
+        // check that we can successfully verify the signature with the public key
+        if let Ok(_) = secp.verify(&msg, &sig, &pubkey) {
+            println!("Signature verify OK");
+        } else {
+            println!("Signature verify NOK");
+        }
+
+        if true==secp.verify_commit_sum(
+            vec![output1, output2],
+            vec![input, excess],
+        ){
+            println!("\n\"subset sum\" verify OK:\toutput1+output2 = input+excess");
+        }else{
+            println!("\n\"subset sum\" verify NOK:\toutput1+output2 != input+excess");
+        }
+
+        if true==secp.verify_commit_sum(
+            vec![output1, output2],
+            vec![input, excess, commit(0, k2)],
+        ){
+            println!("\nsum with k2*G verify OK:\toutput1 + output2 = input + excess + k2*G");
+        }else{
+            println!("\nsum with k2*G verify NOK:\toutput1 + output2 != input + excess + k2*G");
         }
     }
 }
