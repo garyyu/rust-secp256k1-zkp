@@ -378,6 +378,17 @@ extern "C" {
 		blind_gen: *const c_uchar
 	) -> c_int;
 
+    // Generates a pedersen commitment: *commit = blind * G - value * G2.
+    // Same as secp256k1_pedersen_commit() except with 'r*G - v*H', instead of 'r*G + v*H'.
+    pub fn secp256k1_pedersen_minus_commit(
+        ctx: *const Context,
+        commit: *mut c_uchar,
+        blind: *const c_uchar,
+        value: uint64_t,
+        value_gen: *const c_uchar,
+        blind_gen: *const c_uchar
+    ) -> c_int;
+
 	// Get the public key of a pedersen commitment
 	pub fn secp256k1_pedersen_commitment_to_pubkey(
 	    cx: *const Context, pk: *mut PublicKey,

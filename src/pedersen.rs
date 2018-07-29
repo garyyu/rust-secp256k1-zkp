@@ -330,6 +330,42 @@ impl Secp256k1 {
 		Ok(Commitment(commit))
 	}
 
+	/// Creates a pedersen commitment from a value and a blinding factor
+	pub fn commit_i(&self, value: i64, blind: SecretKey) -> Result<Commitment, Error> {
+
+		if self.caps != ContextFlag::Commit {
+			return Err(Error::IncapableContext);
+		}
+		let mut commit = [0; 33];
+
+		if value >= 0 {
+			let v: u64 = value as u64;
+			unsafe {
+				ffi::secp256k1_pedersen_commit(
+					self.ctx,
+					commit.as_mut_ptr(),
+					blind.as_ptr(),
+					v,
+					constants::GENERATOR_H.as_ptr(),
+					constants::GENERATOR_G.as_ptr(),
+				)
+			};
+		}else{
+			let v: u64 = (-value) as u64;
+			unsafe {
+				ffi::secp256k1_pedersen_minus_commit(
+					self.ctx,
+					commit.as_mut_ptr(),
+					blind.as_ptr(),
+					v,
+					constants::GENERATOR_H.as_ptr(),
+					constants::GENERATOR_G.as_ptr(),
+				)
+			};
+		}
+		Ok(Commitment(commit))
+	}
+
 	/// Convenience method to Create a pedersen commitment only from a value,
 	/// with a zero blinding factor
 	pub fn commit_value(&self, value: u64) -> Result<Commitment, Error> {
