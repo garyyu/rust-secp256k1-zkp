@@ -22,7 +22,7 @@ mod tests {
     use ::{Message, Secp256k1};
     use ContextFlag;
     use constants;
-    use key::{ZERO_KEY, SecretKey};
+    use key::{ZERO_KEY, ONE_KEY, SecretKey};
 
     use rand::{Rng, thread_rng};
 
@@ -74,6 +74,86 @@ mod tests {
                  sum12,
         );
     }
+
+    #[test]
+    fn test_pedersen_zero_neg_v() {
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+
+        fn commit(value: i64, one_or_zero_key: bool) -> Commitment {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            let mut blinding = ZERO_KEY;
+            if one_or_zero_key {
+                blinding = ONE_KEY;
+            }
+
+            let v :u64;
+            if value >= 0{
+                v = value as u64;
+                secp.commit(v, blinding).unwrap()
+            }else{
+                v = -value as u64;
+                if blinding != ZERO_KEY {
+                    blinding = secp.blind_sum(vec![], vec![blinding]).unwrap();
+                }
+                let commit = secp.commit(v, blinding).unwrap();
+                secp.commit_sum(vec![], vec![commit]).unwrap()
+            }
+        }
+
+        let commit_1 = commit(-5, false);
+        let commit_2 = commit(5, false);
+
+        println!("0*G-5*H:\t{:?}\n0*G+5*H:\t{:?}\n-(0*G-5*H):\t{:?}",
+                commit_1,
+                commit_2,
+                secp.commit_sum(vec![], vec![commit_1]).unwrap(),
+        );
+
+        println!("\n");
+        let commit_3 = commit(-5, true);
+        let commit_4 = commit(5, false);
+        let commit_5 = commit(0, true);
+
+        println!("1*G-5*H:\t{:?}\n0*G+5*H:\t{:?}\n1*G+0*H:\t{:?}\nsum first 2:\t{:?}",
+                 commit_3,
+                 commit_4,
+                 commit_5,
+                 secp.commit_sum(vec![commit_3, commit_4], vec![]).unwrap(),
+        );
+    }
+
+    #[test]
+    fn test_pedersen_blind_sum() {
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+
+        let mut r1 = SecretKey([0; 32]);
+        let mut r2 = SecretKey([0; 32]);
+
+        r1.0[31] = 1;
+        r2.0[31] = 2;
+
+        let blind_sum = secp.blind_sum(vec![r1, r2], vec![]);
+
+        println!("r1:\t{:?}\nr2:\t{:?}\nr1+r2:\t{:?}",
+                 r1,
+                 r2,
+                 blind_sum,
+        );
+
+        println!("");
+
+        r1.0[31] = 3;
+        r2.0[31] = 1;
+
+        let blind_sum = secp.blind_sum(vec![r1], vec![r2]);
+
+        println!("r1:\t{:?}\nr2:\t{:?}\nr1-r2:\t{:?}",
+                 r1,
+                 r2,
+                 blind_sum,
+        );
+    }
+
 
     #[test]
     fn test_pedersen_zero_v() {
@@ -641,9 +721,22 @@ mod tests {
     fn test_demo_fraud_transactions() {
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
 
-        fn commit(value: u64, blinding: SecretKey) -> Commitment {
+        fn commit(value: i64, blinding: SecretKey) -> Commitment {
             let secp = Secp256k1::with_caps(ContextFlag::Commit);
-            secp.commit(value, blinding).unwrap()
+            let v: u64;
+            let mut blind = blinding;
+
+            if value >= 0 {
+                v = value as u64;
+                secp.commit(v, blind).unwrap()
+            } else {
+                v = -value as u64;
+                if blind != ZERO_KEY {
+                    blind = secp.blind_sum(vec![], vec![blind]).unwrap();
+                }
+                let commit = secp.commit(v, blind).unwrap();
+                secp.commit_sum(vec![], vec![commit]).unwrap()
+            }
         }
 
         let mut r1 = SecretKey([0;32]);
@@ -662,10 +755,16 @@ mod tests {
 
         let input = commit(3, r1);
         let output1 = commit(103, secp.blind_sum(vec![r2, k1, k2], vec![]).unwrap());
-        let output2 = commit(<u64>::max_value()-100+1, r3);
+        let output2 = commit(-100, r3);
         let tmp = commit(103, secp.blind_sum(vec![r2, k1], vec![]).unwrap());
 
         // publish k1*G as excess and k2, instead of (k1+k2)*G
+        // k component:
+        //     (r2+k1+r3-r1)*G = (113-42+13+42-113)*G = 13*G
+        //      ~~~~~ ~~ ~~       ~~~~~~~~~ ~~ ~~~
+        // v component:
+        //     (103+(-100)-3)*H = 0*H
+        //
         let excess = secp.commit_sum(vec![tmp, output2], vec![input]).unwrap();
 
         println!("  input=113*G+3*H:\t{:?}\noutput1= 99*G+103*H:\t{:?}\noutput2= 42*G-100*H:\t{:?}",
@@ -696,15 +795,6 @@ mod tests {
             println!("Signature verify OK");
         } else {
             println!("Signature verify NOK");
-        }
-
-        if true==secp.verify_commit_sum(
-            vec![output1, output2],
-            vec![input, excess],
-        ){
-            println!("\n\"subset sum\" verify OK:\toutput1+output2 = input+excess");
-        }else{
-            println!("\n\"subset sum\" verify NOK:\toutput1+output2 != input+excess");
         }
 
         if true==secp.verify_commit_sum(
