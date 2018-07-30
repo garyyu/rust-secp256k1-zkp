@@ -24,7 +24,7 @@ mod tests {
     use constants;
     use key::{ZERO_KEY, ONE_KEY, SecretKey};
 
-    use rand::{Rng, thread_rng};
+    use rand::{Rng, thread_rng, OsRng};
 
     #[test]
     fn test_show_g_and_h() {
@@ -782,5 +782,81 @@ mod tests {
         }else{
             println!("\nsum with k2*G verify NOK:\toutput1 + output2 != input + excess + k2*G");
         }
+    }
+
+    #[test]
+    fn test_demo_bullet_proof() {
+
+        println!("Demo Bullet Proof without extra message data...\n");
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let commit = secp.commit(value, blinding).unwrap();
+        let bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
+
+        println!("Value:\t\t{}\nBlinding:\t{:?}\nCommitment:\t{:?}\n\nBullet Proof:\t{:?}",
+                 value,
+                 blinding,
+                 commit,
+                 bullet_proof,
+        );
+
+        let proof_range = secp.verify_bullet_proof(commit, bullet_proof, None).unwrap();
+        println!("\nVerification:\t{:#?}", proof_range);
+
+        //-----
+
+        println!("\nDemo Bullet Proof with extra message data...\n");
+
+        let extra_data = [0u8;32].to_vec();
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let commit = secp.commit(value, blinding).unwrap();
+        let bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
+
+        println!("Value:\t\t{}\nBlinding:\t{:?}\nExtra data:\t{:?}\nCommitment:\t{:?}\n\nBullet Proof:\t{:?}",
+                 value,
+                 blinding,
+                 (extra_data),
+                 commit,
+                 bullet_proof,
+        );
+
+        let proof_range = secp.verify_bullet_proof(commit, bullet_proof, Some(extra_data.clone())).unwrap();
+        println!("\nVerification:\t{:#?}", proof_range);
+
+        //-----
+
+        println!("\nDemo rewinding. Extracts the value and blinding factor...\n");
+
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let nonce = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let commit = secp.commit(value, blinding).unwrap();
+        let bullet_proof = secp.bullet_proof(value, blinding, nonce, Some(extra_data.clone()));
+
+        println!("Value:\t\t{}\nBlinding:\t{:?}\nExtra data:\t{:?}\nNonce:\t{:?}\nCommitment:\t{:?}\n\nBullet Proof:\t{:?}",
+                 value,
+                 blinding,
+                 (extra_data),
+                 nonce,
+                 commit,
+                 bullet_proof,
+        );
+
+        // Extracts the value and blinding factor from a single-commit rangeproof,
+        // given a secret 'nonce'.
+        //
+        let proof_info = secp.rewind_bullet_proof(commit, nonce, Some(extra_data.clone()), bullet_proof).unwrap();
+        println!("\nRewind_bullet_proof:\t{:#?}", proof_info);
+
+        println!("Bullet Proof:\t{:?}",
+                 bullet_proof,
+        );
+
+        let proof_range = secp.verify_bullet_proof(commit, bullet_proof, Some(extra_data.clone())).unwrap();
+        println!("\nVerification:\t{:#?}", proof_range);
+
     }
 }
