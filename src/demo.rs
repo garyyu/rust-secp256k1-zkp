@@ -23,6 +23,7 @@ mod tests {
     use ContextFlag;
     use constants;
     use key::{ZERO_KEY, ONE_KEY, SecretKey};
+    use aggsig::{sign_single, verify_single};
 
     use rand::{Rng, thread_rng, OsRng};
 
@@ -857,6 +858,28 @@ mod tests {
 
         let proof_range = secp.verify_bullet_proof(commit, bullet_proof, Some(extra_data.clone())).unwrap();
         println!("\nVerification:\t{:#?}", proof_range);
-
     }
+
+    #[test]
+    fn demo_aggsig_single() {
+        let secp = Secp256k1::with_caps(ContextFlag::Full);
+        let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk, sk);
+
+        let mut msg = [0u8; 32];
+        thread_rng().fill_bytes(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+        let sig = sign_single(&secp, &msg, &sk, None, None, None).unwrap();
+        println!("msg:\t\t\t{:?}", msg);
+        println!("\nschnorr sig:\t\t{:?}", sig);
+
+        let result = verify_single(&secp, &sig, &msg, None, &pk, false);
+        if true == result {
+            println!("signature check:\tOK");
+        }else{
+            println!("signature check:\tNOK");
+        }
+    }
+
 }

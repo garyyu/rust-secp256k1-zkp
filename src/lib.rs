@@ -55,6 +55,7 @@ use serialize::hex::{ToHex};
 #[macro_use]
 mod macros;
 mod demo;
+mod bench;
 pub mod constants;
 pub mod ecdh;
 pub mod ffi;
