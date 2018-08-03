@@ -19,11 +19,11 @@
 mod tests {
 
     use pedersen::{Commitment};
-    use ::{Message, Secp256k1};
+    use ::{Message, Secp256k1, AggSigPartialSignature};
     use ContextFlag;
     use constants;
-    use key::{ZERO_KEY, ONE_KEY, SecretKey};
-    use aggsig::{sign_single, verify_single};
+    use key::{ZERO_KEY, ONE_KEY, SecretKey, PublicKey};
+    use aggsig::{sign_single, verify_single, AggSigContext, export_secnonce_single, add_signatures_single};
 
     use rand::{Rng, thread_rng, OsRng};
 
@@ -879,6 +879,303 @@ mod tests {
             println!("signature check:\tOK");
         }else{
             println!("signature check:\tNOK");
+        }
+    }
+
+    #[test]
+    fn demo_aggsig_multi() {
+
+        let numkeys = 3;
+        let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+        let mut keypairs:Vec<(SecretKey, PublicKey)> = vec![];
+        for _ in 0..numkeys {
+            keypairs.push(secp.generate_keypair(&mut thread_rng()).unwrap());
+        }
+
+        let pks:Vec<PublicKey> = keypairs.clone().into_iter()
+            .map(|(_,p)| p)
+            .collect();
+
+        println!("aggsig context with {} pubkeys: {:#?}", pks.len(), pks);
+
+        let aggsig = AggSigContext::new(&secp, &pks);
+
+        println!("Generating nonces for each index");
+        for i in 0..numkeys {
+            let retval=aggsig.generate_nonce(i);
+            println!("{} returned {}", i, retval);
+        }
+
+        let mut msg = [0u8; 32];
+        thread_rng().fill_bytes(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+
+        let mut partial_sigs:Vec<AggSigPartialSignature> = vec![];
+        for i in 0..numkeys {
+            println!("\nPartial sign:\n\tmessage:\t{:?} at index {}\n\tPubkey:\t\t{:?}", msg, i, keypairs[i].1);
+
+            let result = aggsig.partial_sign(msg,keypairs[i].0,i);
+            match result {
+                Ok(ps) => {
+                    println!("\tPartial sig:\t{:?}", ps);
+                    partial_sigs.push(ps);
+                },
+                Err(e) => panic!("Partial sig failed: {}", e),
+            }
+        }
+
+        let result = aggsig.combine_signatures(&partial_sigs);
+
+        let combined_sig = match result {
+            Ok(cs) => {
+                println!("\nCombined sig: {:?}", cs);
+                cs
+            },
+            Err(e) => panic!("\nCombining partial sig failed: {}", e),
+        };
+
+        println!("\nCombined sig: {:?}\n\tmsg:\t{:?}\n\tpks:\t{:#?}", combined_sig, msg, pks);
+        let result = aggsig.verify(combined_sig, msg, &pks);
+        if true==result {
+            println!("\nSignature verification:\tOK");
+        }else{
+            println!("\nSignature verification:\tNOK");
+        }
+    }
+
+
+    #[test]
+    fn demo_aggsig_batch_verify() {
+
+        /*
+         * Signature Aggregation (Batch Verification):
+         * All the signatures in the block can be removed and only keep an aggregated one.
+         * Signature aggregation can be done by a miner and save a lot of space in the block.
+         */
+
+        let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+        let mut msg = [0u8; 32];
+        thread_rng().fill_bytes(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+
+        //--- Generate nonce: k1,k2,k3
+        let secnonce_1 = export_secnonce_single(&secp).unwrap();
+        let secnonce_2 = export_secnonce_single(&secp).unwrap();
+        let secnonce_3 = export_secnonce_single(&secp).unwrap();
+
+        //--- Calculate public nonce: R1,R2,R3
+        let pubnonce_1 = PublicKey::from_secret_key(&secp, &secnonce_1).unwrap();
+        let pubnonce_2 = PublicKey::from_secret_key(&secp, &secnonce_2).unwrap();
+        let pubnonce_3 = PublicKey::from_secret_key(&secp, &secnonce_3).unwrap();
+
+        //--- And sum public nonce: R = R1+R2+R3
+        let nonce_sum = PublicKey::from_combination(&secp, vec![&pubnonce_1, &pubnonce_2, &pubnonce_3]).unwrap();
+
+        //--- sig1
+        println!("\n--- sig1 ---");
+
+        let (sk1, pk1) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk1, sk1);
+
+        // e=hash(R.x, m)    s=k1+e*p1    sig1=(s,r1)
+        let sig1 = sign_single(&secp, &msg, &sk1, Some(&secnonce_1), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+        println!("msg:\t\t\t{:?}", msg);
+        println!("\nschnorr sig1:\t\t{:?}", sig1);
+
+        // sig1.s*G-e*P1 = k1*G+e*p1*G-e*P1 = R1,   check R1.x == sig1.r ?
+        let result = verify_single(&secp, &sig1, &msg, Some(&nonce_sum), &pk1, true);
+        if true == result {
+            println!("sig1 signature check:\tOK");
+        }else{
+            println!("sig1 signature check:\tNOK");
+        }
+
+        //--- sig2
+
+        println!("\n--- sig2 ---");
+
+        let (sk2, pk2) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk2, sk2);
+
+        // e=hash(R.x, m)    s=k2+e*p2    sig2=(s,r2)
+        let sig2 = sign_single(&secp, &msg, &sk2, Some(&secnonce_2), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+        println!("msg:\t\t\t{:?}", msg);
+        println!("\nschnorr sig2:\t\t{:?}", sig2);
+
+        // sig2.s*G-e*P2 = k2*G+e*p2*G-e*P2 = R2,   check R2.x == sig2.r ?
+        let result = verify_single(&secp, &sig2, &msg, Some(&nonce_sum), &pk2, true);
+        if true == result {
+            println!("sig2 signature check:\tOK");
+        }else{
+            println!("sig2 signature check:\tNOK");
+        }
+
+        //--- sig3
+
+        println!("\n--- sig3 ---");
+
+        let (sk3, pk3) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk3, sk3);
+
+        // e=hash(R.x, m)    s=k3+e*p3    sig3=(s,r3)
+        let sig3 = sign_single(&secp, &msg, &sk3, Some(&secnonce_3), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+        println!("msg:\t\t\t{:?}", msg);
+        println!("\nschnorr sig3:\t\t{:?}", sig3);
+
+        // sig3.s*G-e*P3 = k3*G+e*p3*G-e*P3 = R3,   check R3.x == sig3.r ?
+        let result = verify_single(&secp, &sig3, &msg, Some(&nonce_sum), &pk3, true);
+        if true == result {
+            println!("sig3 signature check:\tOK");
+        }else{
+            println!("sig3 signature check:\tNOK");
+        }
+
+        //--- Batch Verification
+
+        println!("\n--- Batch Verification ---");
+
+        let sig_vec = vec![&sig1, &sig2, &sig3];
+        let combined_sig = add_signatures_single(&secp, sig_vec, &nonce_sum).unwrap();
+
+        // Sum public keys: P = P1+P2+P3
+        let pk_sum = PublicKey::from_combination(&secp, vec![&pk1, &pk2, &pk3]).unwrap();
+
+        println!("\nCombined sig:\t{:?}\n\tmsg:\t{:?}\n\tpk_sum:\t{:?}", combined_sig, msg, pk_sum);
+        // sig.s*G-e*P = k*G+e*p*G-e*P = R,   check R.x == sig.r ?
+        let result = verify_single(&secp, &combined_sig, &msg, Some(&nonce_sum), &pk_sum, false);
+        if true==result {
+            println!("\nSignature Batch Verification:\tOK");
+        }else{
+            println!("\nSignature Batch Verification:\tNOK");
+        }
+    }
+
+    #[test]
+    fn demo_aggsig_batch_fail_verify() {
+
+        /*
+         * Signature Aggregation (Batch Verification):
+         * All the signatures in the block can be removed and only keep an aggregated one.
+         * Signature aggregation can be done by a miner and save a lot of space in the block.
+         */
+
+        let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+        let mut msg = [0u8; 32];
+        thread_rng().fill_bytes(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+
+        //--- Generate nonce: k1,k2,k3
+        let secnonce_1 = export_secnonce_single(&secp).unwrap();
+        let secnonce_2 = export_secnonce_single(&secp).unwrap();
+        let secnonce_3 = export_secnonce_single(&secp).unwrap();
+
+        //--- Calculate public nonce: R1,R2,R3
+        let pubnonce_1 = PublicKey::from_secret_key(&secp, &secnonce_1).unwrap();
+        let pubnonce_2 = PublicKey::from_secret_key(&secp, &secnonce_2).unwrap();
+        let pubnonce_3 = PublicKey::from_secret_key(&secp, &secnonce_3).unwrap();
+
+        //--- And sum public nonce: R = R1+R2+R3
+        let nonce_sum = PublicKey::from_combination(&secp, vec![&pubnonce_1, &pubnonce_2, &pubnonce_3]).unwrap();
+
+        //--- sig1
+        println!("\n--- sig1 ---");
+
+        let (sk1, pk1) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk1, sk1);
+
+        // e=hash(R.x, m)    s=k1+e*p1    sig1=(s,r1)
+        let sig1 = sign_single(&secp, &msg, &sk1, Some(&secnonce_1), None, None).unwrap();
+        println!("msg:\t\t\t{:?}", msg);
+        println!("\nschnorr sig1:\t\t{:?}", sig1);
+
+        // sig1.s*G-e*P1 = k1*G+e*p1*G-e*P1 = R1,   check R1.x == sig1.r ?
+        let result = verify_single(&secp, &sig1, &msg, None, &pk1, false);
+        if true == result {
+            println!("sig1 signature check:\tOK");
+        }else{
+            println!("sig1 signature check:\tNOK");
+        }
+
+        //--- sig2
+
+        println!("\n--- sig2 ---");
+
+        let (sk2, pk2) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk2, sk2);
+
+        // e=hash(R.x, m)    s=k2+e*p2    sig2=(s,r2)
+        let sig2 = sign_single(&secp, &msg, &sk2, Some(&secnonce_2), None, None).unwrap();
+        println!("msg:\t\t\t{:?}", msg);
+        println!("\nschnorr sig2:\t\t{:?}", sig2);
+
+        // sig2.s*G-e*P2 = k2*G+e*p2*G-e*P2 = R2,   check R2.x == sig2.r ?
+        let result = verify_single(&secp, &sig2, &msg, None, &pk2, false);
+        if true == result {
+            println!("sig2 signature check:\tOK");
+        }else{
+            println!("sig2 signature check:\tNOK");
+        }
+
+        //--- sig3
+
+        println!("\n--- sig3 ---");
+
+        let (sk3, pk3) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk3, sk3);
+
+        // e=hash(R.x, m)    s=k3+e*p3    sig3=(s,r3)
+        let sig3 = sign_single(&secp, &msg, &sk3, Some(&secnonce_3), None, None).unwrap();
+        println!("msg:\t\t\t{:?}", msg);
+        println!("\nschnorr sig3:\t\t{:?}", sig3);
+
+        // sig3.s*G-e*P3 = k3*G+e*p3*G-e*P3 = R3,   check R3.x == sig3.r ?
+        let result = verify_single(&secp, &sig3, &msg, None, &pk3, false);
+        if true == result {
+            println!("sig3 signature check:\tOK");
+        }else{
+            println!("sig3 signature check:\tNOK");
+        }
+
+        //--- Batch Verification
+
+        println!("\n--- Batch Verification ---");
+
+        // e1=hash(R1.x, m)    s1=k1+e1*p1    sig1=(s1,R1.x)
+        // e2=hash(R2.x, m)    s2=k2+e2*p2    sig2=(s2,R2.x)
+        // e3=hash(R3.x, m)    s3=k3+e3*p3    sig3=(s3,R3.x)
+        // s=s1+s2+s3 = (k1+k2+k3)+(e1*p1+e2*p2+e3*p3),     R.x = (R1+R2+R3).x
+        //
+        let sig_vec = vec![&sig1, &sig2, &sig3];
+        let combined_sig = add_signatures_single(&secp, sig_vec, &nonce_sum).unwrap();
+
+        // Sum public keys: P = P1+P2+P3
+        let pk_sum = PublicKey::from_combination(&secp, vec![&pk1, &pk2, &pk3]).unwrap();
+
+        println!("\nCombined sig:\t{:?}\n\tmsg:\t{:?}\n\tpk_sum:\t{:?}", combined_sig, msg, pk_sum);
+        // sig = (s,R.x) = (s1+s2+s3, R.x)
+        //   e = hash(R.x, m)
+        //
+        // sig.s*G-e*P
+        // = (k1+k2+k3)*G+(e1*p1+e2*p2+e3*p3)*G - e*P
+        // = R + e1*P1+e2*P2+e3*P3 - e*P
+        // = R + hash(R1.x, m)*P1 + hash(R2.x, m)*P2 + hash(R3.x, m)*P3 - hash(R.x, m)*P
+        //
+        // Because hash() is not a linear function, above equation not equal to R
+        // This signature will definitely fail
+        let result = verify_single(&secp, &combined_sig, &msg, Some(&nonce_sum), &pk_sum, false);
+        if true==result {
+            println!("\nSignature Batch Verification:\tOK");
+        }else{
+            println!("\nSignature Batch Verification:\tNOK");
         }
     }
 
