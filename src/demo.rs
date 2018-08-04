@@ -1258,7 +1258,7 @@ mod tests {
 
         println!("\nCT Mutual Procedure: Round 2 (on receiver side)");
 
-        let (sR, xRG, kRG) = {
+        let (sR, xRG, kRG, receiver_output) = {
             let secp = Secp256k1::with_caps(ContextFlag::Full);
 
             //--- step 1. Check fee against number of inputs, change_outputs +1 * receiver_output)
@@ -1281,7 +1281,6 @@ mod tests {
 
             let xG = PublicKey::from_combination(&secp, vec![&xRG, &xSG]).unwrap();
             let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
-            //println!("xG:\t{:?}\ncommit:\t{:?}", xG, excess_commit);
             if true==secp.verify_commit_sum(
                 vec![output, change_output,
                      commit(fee, secp.blind_sum(vec![], vec![oS]).unwrap())],
@@ -1302,14 +1301,14 @@ mod tests {
             //             with status "Unconfirmed" and identifying transaction log entry TR linking
             //             receiver_output with transaction.
 
-            (sR, xRG, kRG)
+            (sR, xRG, kRG, output)
         };
 
-        println!("\nCT Mutual Procedure: Round 2 Done. Receiver post to Sender: sR, xRG, kRG");
+        println!("\nCT Mutual Procedure: Round 2 Done. Receiver post to Sender: sR, xRG, kRG, receiver_output");
 
         println!("\nCT Mutual Procedure: Final Round (on sender side)");
 
-        let (s, xG, fee, lock_height, oS) = {
+        let (s, excess_commit, fee, lock_height, oS) = {
             let secp = Secp256k1::with_caps(ContextFlag::Full);
 
             //--- step 1. Calculate message M = fee | lock_height
@@ -1336,6 +1335,16 @@ mod tests {
 
             //--- step 6. Calculate public key for s: xG = xRG + xSG
             let xG = PublicKey::from_combination(&secp, vec![&xRG, &xSG]).unwrap();
+            let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
+            if true==secp.verify_commit_sum(
+                vec![receiver_output, change_output,
+                     commit(fee, secp.blind_sum(vec![], vec![oS]).unwrap())],
+                vec![input, excess_commit],
+            ){
+                println!("\ntotal sum balance OK:\toutput + change_output + (-offset*G + fee*H) = input + excess");
+            }else{
+                println!("\ntotal sum balance NOK:\toutput + change_output + (-offset*G + fee*H) != input + excess");
+            }
 
             //--- step 7. Verify s against excess values in final transaction using xG
             let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, false);
@@ -1347,13 +1356,13 @@ mod tests {
 
             //--- step 8. Create Transaction Kernel Containing:
             //            Signature: s, Public key: xG, fee, lock_height, excess value: oS
-            (s, xG, fee, lock_height, oS)
+            (s, excess_commit, fee, lock_height, oS)
         };
 
-        println!("\nCT Mutual Procedure: Final Round Done. Sender post to mempool: s, xG, fee, lock_height, oS");
+        println!("\nCT Mutual Procedure: Final Round Done. Sender post to mempool: s, 'public excess', fee, lock_height, oS, and input,outputs");
 
-        println!("\ns:\t\t{:?}\nxG:\t\t{:?}\nfee:\t\t{:?}\nlock_height:\t{:?}\noS:\t\t{:?}\n",
-                 s, xG, fee, lock_height, oS);
+        println!("\ns:\t\t{:?}\nxG 2 commit:\t{:?}\nfee:\t\t{:?}\nlock_height:\t{:?}\noS:\t\t{:?}\n",
+                 s, excess_commit, fee, lock_height, oS);
     }
 
 }
