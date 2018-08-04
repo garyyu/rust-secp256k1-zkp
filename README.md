@@ -2,7 +2,7 @@
 
 ### rust-secp256k1
 
-This is a rust wrapper around **secp256k1**, with interesting Wiki documents and a lot of demos.
+This is a rust wrapper around **secp256k1**, with interesting [Wiki](https://github.com/garyyu/rust-secp256k1-zkp/wiki) documents and a lot of demos.
 
 `secp256k1` is an actively maintained optimized C library for EC(Elliptic Curve) operations on curve secp256k1, the [main contributors](https://github.com/bitcoin/secp256k1/graphs/contributors) include:
 * [Peter Wuille](https://www.linkedin.com/in/pieterwuille), Co-founder and Core Tech Engineer of Blockstream. 
