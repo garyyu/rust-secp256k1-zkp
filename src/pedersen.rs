@@ -69,6 +69,21 @@ impl Commitment {
 			}
 		}
 	}
+
+	/// Converts a public key to a commitment (v=0)
+	pub fn from_pubkey(secp: &Secp256k1, pubkey: &key::PublicKey) -> Result<Commitment, Error> {
+
+		let mut commit = [0; 33];
+
+		unsafe {
+			if ffi::secp256k1_pedersen_pubkey_to_commitment(secp.ctx, commit.as_mut_ptr(),
+															pubkey.as_ptr()) == 1 {
+				Ok(Commitment(commit))
+			} else {
+				Err(InvalidPublicKey)
+			}
+		}
+	}
 }
 
 /// A range proof. Typically much larger in memory that the above (~5k).

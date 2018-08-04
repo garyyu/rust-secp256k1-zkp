@@ -386,6 +386,11 @@ extern "C" {
 	    cx: *const Context, pk: *mut PublicKey,
 	    commit: *const c_uchar) -> c_int;
 
+    // Get the pedersen commitment (v=0) of a public key
+    pub fn secp256k1_pedersen_pubkey_to_commitment(
+        cx: *const Context, commit: *mut c_uchar,
+        pk: *const PublicKey) -> c_int;
+
 	// Takes a list of n pointers to 32 byte blinding values, the first negs
 	// of which are treated with positive sign and the rest negative, then
 	// calculates an additional blinding value that adds to zero.
