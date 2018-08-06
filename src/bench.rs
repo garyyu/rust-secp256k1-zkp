@@ -21,7 +21,7 @@ mod tests {
     use ::{Message, Secp256k1};
     use ContextFlag;
     use key::{SecretKey, PublicKey};
-    use aggsig::{sign_single, verify_single};
+    use aggsig::{sign_single, verify_single, export_secnonce_single};
     use rand::{Rng, thread_rng};
     use std::time::{SystemTime};
 
@@ -123,6 +123,35 @@ mod tests {
         if let Ok(elapsed) = now.elapsed() {
             let used_time = elapsed.as_secs();
             println!("spent time:\t{}(s)/({} verify)", used_time, LENGTH);
+        }
+    }
+
+    #[test]
+    fn bench_aggsig_check_with_pubnonce_efficiency() {
+        let secp = Secp256k1::with_caps(ContextFlag::Full);
+        let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        let mut msg = [0u8; 32];
+        thread_rng().fill_bytes(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+
+        let secnonce = export_secnonce_single(&secp).unwrap();
+        let pubnonce = PublicKey::from_secret_key(&secp, &secnonce).unwrap();
+
+        let sig=sign_single(&secp, &msg, &sk, Some(&secnonce), Some(&pubnonce), Some(&pubnonce)).unwrap();
+
+        let now = SystemTime::now();
+
+        let mut ok_count = 0;
+        for _ in 1..LENGTH+1 {
+            if true == verify_single(&secp, &sig, &msg, Some(&pubnonce), &pk, false){
+                ok_count += 1;
+            }
+        }
+        println!("aggsig check ok:\t{}/{}", ok_count, LENGTH);
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            println!("spent time:\t{}(s)/({} verify with pubnonce)", used_time, LENGTH);
         }
     }
 }
