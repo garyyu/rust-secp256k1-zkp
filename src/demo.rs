@@ -1365,4 +1365,364 @@ mod tests {
                  s, excess_commit, fee, lock_height, oS);
     }
 
+    #[test]
+    #[allow(non_snake_case)]
+    fn simulate_public_output() {
+
+        fn commit(value: u64, blinding: SecretKey) -> Commitment {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            secp.commit(value, blinding).unwrap()
+        }
+
+        println!("\nCT Mutual Procedure: Round 1 (on sender side)");
+
+        let sender_sk; // private key of sender
+        let sender_kS; // secretnonce of sender
+
+        let (input,change_output,fee,amount,lock_height,kSG,xSG,oS) = {
+
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+            let in_amount:  u64 = 10 * 1_000_000_000;
+            let out_amount: u64 =  8 * 1_000_000_000;
+
+            //--- step 2. Set lock_height for transaction kernel (current chain height)
+            let lock_height: u64 = 10_000;   // just for example
+
+            //--- step 3. Select inputs using desired selection strategy
+            //simulate an UTXO as the input
+            let blinding_input = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let input = commit(in_amount, blinding_input);
+
+            //--- step 7. Skipped.
+            //--- step 8. Calculate fee: tx_weight * 1_000_000 nG
+            let fee: u64 = 8 * 1_000_000;
+
+            //--- step 4. Create change_output
+            //--- step 5. Select blinding factor for change_output
+            let blinding_change_output = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let change_output = commit(in_amount-out_amount-fee, blinding_change_output);
+
+            //--- step 9. Calculate total blinding excess sum xS1 (private scalar), for all inputs(-) and outputs(+)
+            let xS1 = secp.blind_sum(vec![blinding_change_output], vec![blinding_input]).unwrap();
+
+            //--- step 10. Select a random nonce kS (private scalar)
+            let kS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+
+            //--- step 11. Subtract random value oS (kernel offset) from xS1. Calculate xS = xS1 - oS
+            let oS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let xS = secp.blind_sum(vec![xS1], vec![oS]).unwrap();
+
+            sender_sk = xS; // save for final round
+            sender_kS = kS; // save for final round
+
+            //--- step 12. Multiply xS and kS by generator G to create public curve points xSG and kSG
+            let xSG = PublicKey::from_secret_key(&secp, &xS).unwrap();
+            let kSG = PublicKey::from_secret_key(&secp, &kS).unwrap();
+
+            //--- step 13. Add values to Slate for passing to other participants: UUID, inputs, change_outputs, fee, amount, lock_height, kSG, xSG, oS
+            (input,change_output,fee,out_amount,lock_height,kSG,xSG,oS)
+        };
+
+        println!("\nCT Mutual Procedure: Round 1 Done. Sender post to Receiver: inputs, change_outputs, fee, amount, lock_height, kSG, xSG, oS");
+
+        println!("\nCT Mutual Procedure: Round 2 (on receiver side)");
+
+        let (sR, xRG, kRG, receiver_output) = {
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+            //--- step 1. Check fee against number of inputs, change_outputs +1 * receiver_output)
+            //skipped.
+
+            //--- step 2. Create receiver_output
+            //--- step 3. Choose random blinding factor for receiver_output xR (private scalar)
+            let xR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let output = commit(0, xR);
+
+            //--- step 4. Calculate message M = fee | lock_height
+            let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
+
+            //--- step 5. Choose random nonce kR (private scalar)
+            let kR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+
+            //--- step 6. Multiply xR and kR by generator G to create public curve points xRG and kRG
+            let xRG = PublicKey::from_secret_key(&secp, &xR).unwrap();
+            let kRG = PublicKey::from_secret_key(&secp, &kR).unwrap();
+
+            let xG = PublicKey::from_combination(&secp, vec![&xRG, &xSG]).unwrap();
+            let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
+            if true==secp.verify_commit_sum(
+                vec![output, change_output,
+                     commit(amount+fee, secp.blind_sum(vec![], vec![oS]).unwrap())],
+                vec![input, excess_commit],
+            ){
+                println!("\ntotal sum balance OK:\toutput + change_output + (-offset*G + (amount+fee)*H) = input + excess");
+            }else{
+                println!("\ntotal sum balance NOK:\toutput + change_output + (-offset*G + (amount+fee)*H) != input + excess");
+            }
+
+            //--- step 7. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
+            //--- step 8. Compute Recipient Schnorr signature sR = kR + e * xR
+            let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
+            let sR = sign_single(&secp, &msg, &xR, Some(&kR), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+
+            //--- step 9. Add sR, xRG, kRG to Slate
+            //--- step 10. Create wallet output function rF that stores receiver_output in wallet
+            //             with status "Unconfirmed" and identifying transaction log entry TR linking
+            //             receiver_output with transaction.
+
+            (sR, xRG, kRG, output)
+        };
+
+        println!("\nCT Mutual Procedure: Round 2 Done. Receiver post to Sender: sR, xRG, kRG, receiver_output");
+
+        println!("\nCT Mutual Procedure: Final Round (on sender side)");
+
+        let (s, _excess_commit, fee, lock_height, oS) = {
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+            //--- step 1. Calculate message M = fee | lock_height
+            let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
+
+            //--- step 2. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
+            //--- step 3. Verify sR by verifying kRG = sRG - e * xRG
+            let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
+            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, true);
+            if true==result {
+                println!("Signature 'sR' Verification:\tOK");
+            }else{
+                println!("Signature 'sR' Verification:\tNOK");
+            }
+
+            //--- step 4. Compute Sender Schnorr signature sS = kS + e * xS
+            let xS = sender_sk; // load sender's private key , which is saved in 1st round
+            let kS = sender_kS; // load sender's secret nonce, which is saved in 1st round
+            let sS = sign_single(&secp, &msg, &xS, Some(&kS), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+
+            //--- step 5. Calculate final signature s = (sS+sR, kSG+kRG)
+            let sig_vec = vec![&sR, &sS];
+            let s = add_signatures_single(&secp, sig_vec, &nonce_sum).unwrap();
+
+            //--- step 6. Calculate public key for s: xG = xRG + xSG
+            let xG = PublicKey::from_combination(&secp, vec![&xRG, &xSG]).unwrap();
+            let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
+            if true==secp.verify_commit_sum(
+                vec![receiver_output, change_output,
+                     commit(amount+fee, secp.blind_sum(vec![], vec![oS]).unwrap())],
+                vec![input, excess_commit],
+            ){
+                println!("\ntotal sum balance OK:\toutput + change_output + (-offset*G + (amount+fee)*H) = input + excess");
+            }else{
+                println!("\ntotal sum balance NOK:\toutput + change_output + (-offset*G + (amount+fee)*H) != input + excess");
+            }
+
+            //--- step 7. Verify s against excess values in final transaction using xG
+            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, false);
+            if true==result {
+                println!("Signature 's' Verification:\tOK");
+            }else{
+                println!("Signature 's' Verification:\tNOK");
+            }
+
+            //--- step 8. Create Transaction Kernel Containing:
+            //            Signature: s, Public key: xG, fee, lock_height, excess value: oS
+            (s, excess_commit, fee, lock_height, oS)
+        };
+
+        println!("\nCT Mutual Procedure: Final Round Done. Sender post to mempool: s, 'public excess', fee, lock_height, oS, and input,outputs");
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        println!("\ns:\t\t{:?}\nxSG 2 commit:\t{:?}\nxRG 2 commit:\t{:?}\nfee:\t\t{:?}\nlock_height:\t{:?}\noS:\t\t{:?}\n",
+                 s,
+                 Commitment::from_pubkey(&secp, &xSG).unwrap(),
+                 Commitment::from_pubkey(&secp, &xRG).unwrap(),
+                 fee, lock_height, oS);
+
+        println!("\nReceiver Output Commit:\t{:?}\nValue:\t{:?}", receiver_output, amount);
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn simulate_public_transaction() {
+
+        fn commit(value: u64, blinding: SecretKey) -> Commitment {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            secp.commit(value, blinding).unwrap()
+        }
+
+        println!("\nPT Mutual Procedure: Round 1 (on sender side)");
+
+        let sender_sk; // private key of sender
+        let sender_kS; // secretnonce of sender
+        let sender_xSG1;
+
+        let (input,change_output,fee,in_amount, out_amount,change_amount, lock_height,kSG,xSG,oS) = {
+
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+            let in_amount:  u64 = 10 * 1_000_000_000;
+            let out_amount: u64 =  8 * 1_000_000_000;
+
+            //--- step 2. Set lock_height for transaction kernel (current chain height)
+            let lock_height: u64 = 10_000;   // just for example
+
+            //--- step 3. Select inputs using desired selection strategy
+            //simulate an UTXO as the input
+            let blinding_input = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let input = commit(0, blinding_input);
+
+            //--- step 7. Skipped.
+            //--- step 8. Calculate fee: tx_weight * 1_000_000 nG
+            let fee: u64 = 8 * 1_000_000;
+
+            //--- step 4. Create change_output
+            //--- step 5. Select blinding factor for change_output
+            let blinding_change_output = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let change_output = commit(0, blinding_change_output);
+
+            //--- step 9. Calculate total blinding excess sum xS1 (private scalar), for all inputs(-) and outputs(+)
+            let xS1 = secp.blind_sum(vec![blinding_change_output], vec![blinding_input]).unwrap();
+
+            //--- step 10. Select a random nonce kS (private scalar)
+            let kS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+
+            //--- step 11. Subtract random value oS (kernel offset) from xS1. Calculate xS = xS1 - oS
+            let oS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let xS = secp.blind_sum(vec![xS1], vec![oS]).unwrap();
+
+            sender_sk = xS; // save for final round
+            sender_kS = kS; // save for final round
+
+            //--- step 12. Multiply xS and kS by generator G to create public curve points xSG and kSG
+            let xSG = PublicKey::from_secret_key(&secp, &xS).unwrap();
+            let kSG = PublicKey::from_secret_key(&secp, &kS).unwrap();
+
+            let xSG1 = PublicKey::from_secret_key(&secp, &secp.blind_sum(vec![], vec![blinding_input,oS]).unwrap()).unwrap();
+            sender_xSG1 = xSG1;
+
+            //--- step 13. Add values to Slate for passing to other participants: UUID, inputs, change_outputs, fee, amount, lock_height, kSG, xSG, oS
+            (input,change_output,fee,in_amount,out_amount,in_amount-out_amount-fee,lock_height,kSG,xSG,oS)
+        };
+
+        println!("\nPT Mutual Procedure: Round 1 Done. Sender post to Receiver: inputs, change_outputs, fee, amount, lock_height, kSG, xSG, oS");
+
+        println!("\nPT Mutual Procedure: Round 2 (on receiver side)");
+
+        let (sR, xRG, kRG, receiver_output) = {
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+            //--- step 1. Check fee against number of inputs, change_outputs +1 * receiver_output)
+            //skipped.
+
+            //--- step 2. Create receiver_output
+            //--- step 3. Choose random blinding factor for receiver_output xR (private scalar)
+            let xR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let output = commit(0, xR);
+
+            //--- step 4. Calculate message M = fee | lock_height
+            let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
+
+            //--- step 5. Choose random nonce kR (private scalar)
+            let kR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+
+            //--- step 6. Multiply xR and kR by generator G to create public curve points xRG and kRG
+            let xRG = PublicKey::from_secret_key(&secp, &xR).unwrap();
+            let kRG = PublicKey::from_secret_key(&secp, &kR).unwrap();
+
+            let xG = PublicKey::from_combination(&secp, vec![&xRG, &xSG]).unwrap();
+            let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
+            if true==secp.verify_commit_sum(
+                vec![output, change_output],
+                vec![input, excess_commit,
+                     commit(in_amount-out_amount-change_amount-fee, secp.blind_sum(vec![oS], vec![]).unwrap())],
+            ){
+                println!("\ntotal sum balance OK:\toutput + change_output = input + excess - (offset*G + (in_amount-out_amount-change_amount-fee)*H)");
+            }else{
+                println!("\ntotal sum balance NOK:\toutput + change_output != input + excess - (offset*G + (in_amount-out_amount-change_amount-fee)*H)");
+            }
+
+            //--- step 7. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
+            //--- step 8. Compute Recipient Schnorr signature sR = kR + e * xR
+            let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
+            let sR = sign_single(&secp, &msg, &xR, Some(&kR), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+
+            //--- step 9. Add sR, xRG, kRG to Slate
+            //--- step 10. Create wallet output function rF that stores receiver_output in wallet
+            //             with status "Unconfirmed" and identifying transaction log entry TR linking
+            //             receiver_output with transaction.
+
+            (sR, xRG, kRG, output)
+        };
+
+        println!("\nPT Mutual Procedure: Round 2 Done. Receiver post to Sender: sR, xRG, kRG, receiver_output");
+
+        println!("\nPT Mutual Procedure: Final Round (on sender side)");
+
+        let (s, xSG1, fee, lock_height, oS) = {
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+            //--- step 1. Calculate message M = fee | lock_height
+            let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
+
+            //--- step 2. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
+            //--- step 3. Verify sR by verifying kRG = sRG - e * xRG
+            let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
+            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, true);
+            if true==result {
+                println!("Signature 'sR' Verification:\tOK");
+            }else{
+                println!("Signature 'sR' Verification:\tNOK");
+            }
+
+            //--- step 4. Compute Sender Schnorr signature sS = kS + e * xS
+            let xS = sender_sk; // load sender's private key , which is saved in 1st round
+            let kS = sender_kS; // load sender's secret nonce, which is saved in 1st round
+            let sS = sign_single(&secp, &msg, &xS, Some(&kS), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+
+            //--- step 5. Calculate final signature s = (sS+sR, kSG+kRG)
+            let sig_vec = vec![&sR, &sS];
+            let s = add_signatures_single(&secp, sig_vec, &nonce_sum).unwrap();
+
+            //--- step 6. Calculate public key for s: xG = xRG + xSG
+            let xSG1 = sender_xSG1; // load
+            let xG = PublicKey::from_combination(&secp,
+                                                 vec![&xRG, &xSG1, &change_output.to_pubkey(&secp).unwrap()]).unwrap();
+            let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
+            if true==secp.verify_commit_sum(
+                vec![receiver_output, change_output],
+                vec![input, excess_commit,
+                     commit(in_amount-out_amount-change_amount-fee, secp.blind_sum(vec![oS], vec![]).unwrap())],
+            ){
+                println!("\ntotal sum balance OK:\toutput + change_output = input + excess - (offset*G + (in_amount-out_amount-change_amount-fee)*H)");
+            }else{
+                println!("\ntotal sum balance NOK:\toutput + change_output != input + excess - (offset*G + (in_amount-out_amount-change_amount-fee)*H)");
+            }
+
+            //--- step 7. Verify s against excess values in final transaction using xG
+            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, false);
+            if true==result {
+                println!("Signature 's' Verification:\tOK");
+            }else{
+                println!("Signature 's' Verification:\tNOK");
+            }
+
+            //--- step 8. Create Transaction Kernel Containing:
+            //            Signature: s, Public key: xG, fee, lock_height, excess value: oS
+            (s, xSG1, fee, lock_height, oS)
+        };
+
+        println!("\nPT Mutual Procedure: Final Round Done. Sender post to mempool: s, xSG1, fee, lock_height, oS, and input,outputs");
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        println!("\ns:\t\t{:?}\nxSG1 2 commit:\t{:?}\nchange commit:\t{:?}\nxRG 2 commit:\t{:?}\nfee:\t\t{:?}\nlock_height:\t{:?}\noS:\t\t{:?}\n",
+                 s,
+                 Commitment::from_pubkey(&secp, &xSG1).unwrap(),
+                 change_output,
+                 Commitment::from_pubkey(&secp, &xRG).unwrap(),
+                 fee, lock_height, oS);
+
+        println!("\nReceiver Output Commit:\t{:?}\nValue:\t{:?}", receiver_output, out_amount);
+        println!("\nChange Output Commit:\t{:?}\nValue:\t{:?}", change_output, change_amount);
+    }
+
 }
