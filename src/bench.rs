@@ -22,7 +22,7 @@ mod tests {
     use ContextFlag;
     use key::{SecretKey, PublicKey};
     use aggsig::{sign_single, verify_single, export_secnonce_single};
-    use rand::{Rng, thread_rng};
+    use rand::{Rng, thread_rng, OsRng};
     use std::time::{SystemTime};
 
     const LENGTH: usize = 100_000;
@@ -154,4 +154,80 @@ mod tests {
             println!("spent time:\t{}(s)/({} verify with pubnonce)", used_time, LENGTH);
         }
     }
+
+    #[test]
+    fn bench_bullet_proof_wt_extra() {
+        const BP_LENGTH: usize = 1_000;
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let commit = secp.commit(value, blinding).unwrap();
+
+        let mut now = SystemTime::now();
+        let mut bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
+
+        for _ in 1..BP_LENGTH+1 {
+            bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
+        }
+
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            println!("spent time:\t{}(s)/({} bullet proof)", used_time, BP_LENGTH);
+        }
+
+        now = SystemTime::now();
+        let mut ok_count = 0;
+        for _ in 1..BP_LENGTH+1 {
+            let proof_range = secp.verify_bullet_proof(commit, bullet_proof, None).unwrap();
+            if proof_range.min==0{
+                ok_count += 1;
+            }
+        }
+        println!("verify_bullet_proof ok:\t{}/{}", ok_count, BP_LENGTH);
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            println!("spent time:\t{}(s)/({} verify bullet proof)", used_time, BP_LENGTH);
+        }
+    }
+
+
+    #[test]
+    fn bench_bullet_proof_with_extra_msg() {
+        const BP_LENGTH: usize = 1_000;
+
+        let extra_data = [0u8;64].to_vec();
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let commit = secp.commit(value, blinding).unwrap();
+
+        let mut now = SystemTime::now();
+        let mut bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
+
+        for _ in 1..BP_LENGTH+1 {
+            bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
+        }
+
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            println!("spent time:\t{}(s)/({} bullet proof with extra msg)", used_time, BP_LENGTH);
+        }
+
+        now = SystemTime::now();
+        let mut ok_count = 0;
+        for _ in 1..BP_LENGTH+1 {
+            let proof_range = secp.verify_bullet_proof(commit, bullet_proof, Some(extra_data.clone())).unwrap();
+            if proof_range.min==0{
+                ok_count += 1;
+            }
+        }
+        println!("verify_bullet_proof ok:\t{}/{}", ok_count, BP_LENGTH);
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            println!("spent time:\t{}(s)/({} verify bullet proof with extra msg)", used_time, BP_LENGTH);
+        }
+    }
+
 }
