@@ -22,6 +22,7 @@ mod tests {
     use ContextFlag;
     use key::{SecretKey, PublicKey};
     use aggsig::{sign_single, verify_single, export_secnonce_single};
+    use pedersen::{Commitment, RangeProof};
     use rand::{Rng, thread_rng, OsRng};
     use std::time::{SystemTime};
 
@@ -228,6 +229,91 @@ mod tests {
             let used_time = elapsed.as_secs();
             println!("spent time:\t{}(s)/({} verify bullet proof with extra msg)", used_time, BP_LENGTH);
         }
+    }
+
+    #[test]
+    fn bench_bulletproof_batch_verify() {
+        const BP_LENGTH: usize = 1_000;
+
+        let mut commits:Vec<Commitment> = vec![];
+        let mut proofs:Vec<RangeProof> = vec![];
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+
+        let mut now = SystemTime::now();
+
+        for i in 1..BP_LENGTH+1 {
+            commits.push(secp.commit(value + i as u64, blinding).unwrap());
+            proofs.push(secp.bullet_proof(value + i as u64, blinding, blinding, None));
+        }
+
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            let used_time_subsec_millis = elapsed.subsec_millis();
+            println!("spent time:\t{}.{:0<3}(s)/({} bullet proof creation w/t extra message)",
+                     used_time, used_time_subsec_millis, BP_LENGTH);
+        }
+
+        now = SystemTime::now();
+        let proof_range = secp.verify_bullet_proof_multi(commits, proofs, None);
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            let used_time_subsec_millis = elapsed.subsec_millis();
+            println!("spent time:\t{}.{:0<3}(s)/(1 batch verify for {} bullet proofs w/t extra message)",
+                     used_time, used_time_subsec_millis, BP_LENGTH);
+        }
+        println!("\nproof_range:\t{:#x?}", proof_range.unwrap());
+    }
+
+    #[test]
+    fn bench_bulletproof_with_extra_batch_verify() {
+        const BP_LENGTH: usize = 1_000;
+
+        let mut commits:Vec<Commitment> = vec![];
+        let mut proofs:Vec<RangeProof> = vec![];
+        let mut extra_data_vec = vec![];
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let mut extra_data = [0u8;64];
+        thread_rng().fill_bytes(&mut extra_data);
+
+        let mut now = SystemTime::now();
+
+        for i in 1..BP_LENGTH+1 {
+            commits.push(secp.commit(value + i as u64, blinding).unwrap());
+            extra_data_vec.push(extra_data.to_vec().clone());
+
+            proofs.push(secp.bullet_proof(
+                value + i as u64,
+                blinding,
+                blinding,
+                Some(extra_data.to_vec().clone())));
+        }
+
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            let used_time_subsec_millis = elapsed.subsec_millis();
+            println!("spent time:\t{}.{:0<3}(s)/({} bullet proof creation w/ extra data)",
+                     used_time, used_time_subsec_millis, BP_LENGTH);
+        }
+
+        now = SystemTime::now();
+        let proof_range = secp.verify_bullet_proof_multi(
+            commits,
+            proofs,
+            Some(extra_data_vec.clone()));
+
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            let used_time_subsec_millis = elapsed.subsec_millis();
+            println!("spent time:\t{}.{:0<3}(s)/(1 batch verify for {} bullet proofs w/ extra data)",
+                     used_time, used_time_subsec_millis, BP_LENGTH);
+        }
+        println!("\nproof_range:\t{:#x?}", proof_range.unwrap());
     }
 
 }
