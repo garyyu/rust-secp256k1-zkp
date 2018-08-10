@@ -297,6 +297,9 @@ impl ::std::fmt::Debug for RangeProof {
 	}
 }
 
+// shared Bullet Proof Generators
+static mut SHARED_BULLETGENERATORS: Option<*mut ffi::BulletproofGenerators> = None;
+
 impl Secp256k1 {
 	/// verify commitment
 	pub fn verify_from_commit(&self, msg: &Message, sig: &Signature, commit: &Commitment) -> Result<(), Error> {
@@ -672,7 +675,16 @@ impl Secp256k1 {
 
 		let _success = unsafe {
 			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
-			let gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+			let gens;
+			{
+				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
+					gens = shared_gens;
+				} else {
+					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+					SHARED_BULLETGENERATORS = Some(gens);
+				}
+			}
+
 			let result = ffi::secp256k1_bulletproof_rangeproof_prove(
 				self.ctx,
 				scratch,
@@ -690,7 +702,7 @@ impl Secp256k1 {
 				extra_data_len as size_t,
 			);
 
-			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
+//			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, *gens);
 			ffi::secp256k1_scratch_space_destroy(scratch);
 
 			result == 1
@@ -718,7 +730,16 @@ impl Secp256k1 {
 
 		let success = unsafe {
 			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
-			let gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+			let gens;
+			{
+				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
+					gens = shared_gens;
+				} else {
+					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+					SHARED_BULLETGENERATORS = Some(gens);
+				}
+			}
+
 			let result = ffi::secp256k1_bulletproof_rangeproof_verify(
 				self.ctx,
 				scratch,
@@ -733,7 +754,7 @@ impl Secp256k1 {
 				extra_data_ptr,
 				extra_data_len as size_t,
 			 );
-			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
+//			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
 			ffi::secp256k1_scratch_space_destroy(scratch);
 			result == 1
 		};
@@ -797,7 +818,15 @@ impl Secp256k1 {
 
 		let success = unsafe {
 			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
-			let gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+			let gens;
+			{
+				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
+					gens = shared_gens;
+				} else {
+					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+					SHARED_BULLETGENERATORS = Some(gens);
+				}
+			}
 			let result = ffi::secp256k1_bulletproof_rangeproof_verify_multi(
 				self.ctx,
 				scratch,
@@ -813,7 +842,7 @@ impl Secp256k1 {
 				extra_data_vec_ptr,
 				extra_data_lengths_ptr,
 			 );
-			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
+//			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
 			ffi::secp256k1_scratch_space_destroy(scratch);
 			result == 1
 		};
@@ -849,7 +878,15 @@ impl Secp256k1 {
 
 		let success = unsafe {
 			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
-			let gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+			let gens;
+			{
+				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
+					gens = shared_gens;
+				} else {
+					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+					SHARED_BULLETGENERATORS = Some(gens);
+				}
+			}
 			let result = ffi::secp256k1_bulletproof_rangeproof_rewind(
 				self.ctx,
 				gens,
@@ -864,7 +901,7 @@ impl Secp256k1 {
 				extra_data.as_ptr(),
 				extra_data.len() as size_t,
 			 );
-			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
+//			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
 			ffi::secp256k1_scratch_space_destroy(scratch);
 			result == 1
 		};
