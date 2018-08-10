@@ -35,6 +35,11 @@ use serde::{ser, de};
 use serialize::hex::{ToHex};
 
 const MAX_WIDTH:usize = 1 << 20;
+const SCRATCH_SPACE_SIZE: size_t = 256 * MAX_WIDTH;
+const MAX_GENERATORS: size_t = 256;
+
+/// Shared Bullet Proof Generators (avoid recreating every time)
+static mut SHARED_BULLETGENERATORS: Option<*mut ffi::BulletproofGenerators> = None;
 
 /// A Pedersen commitment
 pub struct Commitment(pub [u8; constants::PEDERSEN_COMMITMENT_SIZE]);
@@ -296,9 +301,6 @@ impl ::std::fmt::Debug for RangeProof {
 		write!(f, ")[{}]", self.plen)
 	}
 }
-
-// shared Bullet Proof Generators
-static mut SHARED_BULLETGENERATORS: Option<*mut ffi::BulletproofGenerators> = None;
 
 impl Secp256k1 {
 	/// verify commitment
@@ -674,13 +676,13 @@ impl Secp256k1 {
 		};
 
 		let _success = unsafe {
-			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
+			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
 			let gens;
 			{
 				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
 					gens = shared_gens;
 				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
 					SHARED_BULLETGENERATORS = Some(gens);
 				}
 			}
@@ -729,13 +731,13 @@ impl Secp256k1 {
 		};
 
 		let success = unsafe {
-			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
+			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
 			let gens;
 			{
 				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
 					gens = shared_gens;
 				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
 					SHARED_BULLETGENERATORS = Some(gens);
 				}
 			}
@@ -817,13 +819,13 @@ impl Secp256k1 {
 		};
 
 		let success = unsafe {
-			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
+			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
 			let gens;
 			{
 				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
 					gens = shared_gens;
 				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
 					SHARED_BULLETGENERATORS = Some(gens);
 				}
 			}
@@ -877,13 +879,13 @@ impl Secp256k1 {
 		let mut value_out = 0;
 
 		let success = unsafe {
-			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
+			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
 			let gens;
 			{
 				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
 					gens = shared_gens;
 				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
 					SHARED_BULLETGENERATORS = Some(gens);
 				}
 			}
