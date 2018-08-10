@@ -26,6 +26,9 @@ mod tests {
     use rand::{Rng, thread_rng, OsRng};
     use std::time::{SystemTime};
 
+    use constants;
+    use ffi;
+
     const LENGTH: usize = 100_000;
 
     #[test]
@@ -315,5 +318,76 @@ mod tests {
         }
         println!("\nproof_range:\t{:#x?}", proof_range.unwrap());
     }
+
+
+    #[test]
+    fn bench_generator_h_efficiency() {
+        const PC_LENGTH: usize = 1000_000;
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+
+        /// Generator H' (as compressed curve point (3))
+        const GENERATOR_H_V2 : [u8;33] = [
+            0x0a,
+            0x50, 0x92, 0x9b, 0x74, 0xc1, 0xa0, 0x49, 0x54,
+            0xb7, 0x8b, 0x4b, 0x60, 0x35, 0xe9, 0x7a, 0x5e,
+            0x07, 0x8a, 0x5a, 0x0f, 0x28, 0xec, 0x96, 0xd5,
+            0x47, 0xbf, 0xee, 0x9a, 0xce, 0x80, 0x3a, 0xc0
+        ];
+
+        // Creates a pedersen commitment, with another 'H'
+        fn commit_v2(secp: *const Secp256k1, value: u64, blind: SecretKey) -> Option<Commitment> {
+
+            let mut commit = [0; 33];
+
+            unsafe {
+                if (*secp).caps != ContextFlag::Commit {
+                    return None;
+                }
+
+                ffi::secp256k1_pedersen_commit(
+                    (*secp).ctx,
+                    commit.as_mut_ptr(),
+                    blind.as_ptr(),
+                    value,
+                    GENERATOR_H_V2.as_ptr(),
+                    constants::GENERATOR_G.as_ptr(),
+                )
+            };
+
+            Some(Commitment(commit))
+        }
+
+        let mut r = SecretKey([0;32]);
+        thread_rng().fill_bytes(&mut r.0);
+        let value: u64 = 12345678;
+
+        //--- H1
+
+        let now = SystemTime::now();
+
+        for i in 1..PC_LENGTH+1 {
+            let _commit = secp.commit(value+i as u64, r);
+        }
+
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            println!("spent time:\t{}(s)/({} pedersen commitment with H1)", used_time, PC_LENGTH);
+        }
+
+        //--- H2
+
+        let now = SystemTime::now();
+
+        for i in 1..PC_LENGTH+1 {
+            let _commit = commit_v2(&secp, value+i as u64, r);
+        }
+
+        if let Ok(elapsed) = now.elapsed() {
+            let used_time = elapsed.as_secs();
+            println!("spent time:\t{}(s)/({} pedersen commitment with H2)", used_time, PC_LENGTH);
+        }
+    }
+
 
 }
