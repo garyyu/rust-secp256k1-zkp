@@ -861,6 +861,79 @@ mod tests {
     }
 
     #[test]
+    fn test_compare_old_bullet_proof() {
+
+        println!("Compare Bullet Proof between new and old version, w/t extra message...\n");
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let commit = secp.commit(value, blinding).unwrap();
+        let bullet_proof_old = secp.old_bullet_proof_do_not_use(value, blinding, blinding, None);
+        let bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
+
+        println!("Value:\t\t{}\nBlinding:\t{:?}\nCommitment:\t{:?}\n\nBullet Proof Old:\t{:?}\n\nBullet Proof New:\t{:?}",
+                 value,
+                 blinding,
+                 commit,
+                 bullet_proof_old,
+                 bullet_proof,
+        );
+
+        let proof_range_old = secp.verify_bullet_proof(commit, bullet_proof_old, None);
+        println!("\nNew verification on old proof:\t{:#?}", proof_range_old);
+
+        let proof_range = secp.verify_bullet_proof(commit, bullet_proof, None);
+        println!("\nNew verification on new proof:\t{:#?}", proof_range);
+
+        //-----
+
+        println!("\nCompare Bullet Proof between new and old version, w/ extra message...\n");
+
+        let extra_data = [0u8;32].to_vec();
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let commit = secp.commit(value, blinding).unwrap();
+        let bullet_proof_old = secp.old_bullet_proof_do_not_use(value, blinding, blinding, Some(extra_data.clone()));
+        let bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
+
+        println!("Value:\t\t{}\nBlinding:\t{:?}\nExtra data:\t{:?}\nCommitment:\t{:?}\n\nBullet Proof Old:\t{:?}\n\nBullet Proof New:\t{:?}",
+                 value,
+                 blinding,
+                 (extra_data),
+                 commit,
+                 bullet_proof_old,
+                 bullet_proof,
+        );
+
+        let proof_range_old = secp.verify_bullet_proof(commit, bullet_proof_old, Some(extra_data.clone()));
+        println!("\nNew verification on old proof:\t{:#?}", proof_range_old);
+
+        let proof_range = secp.verify_bullet_proof(commit, bullet_proof, Some(extra_data.clone()));
+        println!("\nNew verification on new proof:\t{:#?}", proof_range);
+
+        //-----
+
+        println!("\n\nCompare rewinding. Extracts the value and blinding factor...\n");
+
+        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let nonce = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let value = 12345678;
+        let commit = secp.commit(value, blinding).unwrap();
+        let bullet_proof_old = secp.old_bullet_proof_do_not_use(value, blinding, nonce, Some(extra_data.clone()));
+        let bullet_proof = secp.bullet_proof(value, blinding, nonce, Some(extra_data.clone()));
+
+        // Extracts the value and blinding factor from a single-commit rangeproof,
+        // given a secret 'nonce'.
+        //
+        let proof_info = secp.rewind_bullet_proof(commit, nonce, Some(extra_data.clone()), bullet_proof_old);
+        println!("\nRewind_bullet_proof on old proof:\t{:#?}", proof_info);
+
+        let proof_info = secp.rewind_bullet_proof(commit, nonce, Some(extra_data.clone()), bullet_proof);
+        println!("\nRewind_bullet_proof on new proof:\t{:#?}", proof_info);
+    }
+
+    #[test]
     fn demo_aggsig_single() {
         let secp = Secp256k1::with_caps(ContextFlag::Full);
         let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();

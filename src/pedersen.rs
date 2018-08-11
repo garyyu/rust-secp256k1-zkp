@@ -716,6 +716,60 @@ impl Secp256k1 {
 		}
 	}
 
+	/// Produces a bullet proof for the provided value, using min and max
+	/// bounds, relying on the blinding factor and value. If a message is passed,
+	/// it will be truncated to 64 bytes
+	pub fn old_bullet_proof_do_not_use(
+		&self,
+		value: u64,
+		blind: SecretKey,
+		nonce: SecretKey,
+		extra_data: Option<Vec<u8>>
+	) -> RangeProof {
+		let mut proof = [0; constants::MAX_PROOF_SIZE];
+		let mut plen = constants::MAX_PROOF_SIZE as size_t;
+
+		let blind_vec:Vec<SecretKey> = vec![blind];
+		let blind_vec = map_vec!(blind_vec, |p| p.0.as_ptr());
+		let n_bits = 64;
+
+		let (extra_data_len, extra_data) = match extra_data {
+			Some(d) => (d.len(), d),
+			None => (0, vec![]),
+		};
+
+		let _success = unsafe {
+			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
+			let gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+			let result = ffi::secp256k1_bulletproof_rangeproof_prove(
+				self.ctx,
+				scratch,
+				gens,
+				proof.as_mut_ptr(),
+				&mut plen,
+				&value,
+				ptr::null(),
+				blind_vec.as_ptr(),
+				1,
+				constants::GENERATOR_H.as_ptr(),
+				n_bits as size_t,
+				nonce.as_ptr(),
+				extra_data.as_ptr(),
+				extra_data_len as size_t,
+			);
+
+			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
+			ffi::secp256k1_scratch_space_destroy(scratch);
+
+			result == 1
+		};
+
+		RangeProof {
+			proof: proof,
+			plen: plen as usize,
+		}
+	}
+
 	/// Verify with bullet proof that a committed value is positive
 	pub fn verify_bullet_proof(
 		&self,
