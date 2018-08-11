@@ -389,5 +389,31 @@ mod tests {
         }
     }
 
+//    #[test]
+//    fn bench_pubkey_check_eq() {
+//        const MAX_LENGTH: usize = 1000_000;
+//
+//        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+//
+//        let mut secret = SecretKey([0; 32]);
+//        thread_rng().fill_bytes(&mut secret.0);
+//        let pubkey1 = PublicKey::from_secret_key(&secp, &secret).unwrap();
+//
+//        let now = SystemTime::now();
+//
+//        let mut ok_count = 0;
+//        for _ in 1..MAX_LENGTH+1 {
+//            let pubkey2 = PublicKey::from_secret_key(&secp, &secret).unwrap();
+//            if pubkey1 == pubkey2{
+//                ok_count += 1;
+//            }
+//            thread_rng().fill_bytes(&mut secret.0);
+//        }
+//        println!("pubkey equal check ok:\t{}/{}", ok_count, MAX_LENGTH);
+//        if let Ok(elapsed) = now.elapsed() {
+//            let used_time = elapsed.as_secs();
+//            println!("spent time:\t{}(s)/({} pubkey equal check)", used_time, MAX_LENGTH);
+//        }
+//    }
 
 }
