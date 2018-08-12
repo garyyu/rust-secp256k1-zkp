@@ -255,7 +255,7 @@ mod tests {
         if let Ok(elapsed) = now.elapsed() {
             let used_time = elapsed.as_secs();
             let used_time_subsec_millis = elapsed.subsec_millis();
-            println!("spent time:\t{}.{:0<3}(s)/({} bullet proof creation w/t extra message)",
+            println!("spent time:\t{}.{:0<3}(s)/({} bullet proof creation w/o extra message)",
                      used_time, used_time_subsec_millis, BP_LENGTH);
         }
 
@@ -264,7 +264,7 @@ mod tests {
         if let Ok(elapsed) = now.elapsed() {
             let used_time = elapsed.as_secs();
             let used_time_subsec_millis = elapsed.subsec_millis();
-            println!("spent time:\t{}.{:0<3}(s)/(1 batch verify for {} bullet proofs w/t extra message)",
+            println!("spent time:\t{}.{:0<3}(s)/(1 batch verify for {} bullet proofs w/o extra message)",
                      used_time, used_time_subsec_millis, BP_LENGTH);
         }
         println!("\nproof_range:\t{:#x?}", proof_range.unwrap());
