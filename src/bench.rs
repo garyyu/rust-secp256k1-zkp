@@ -18,18 +18,21 @@
 
 #[cfg(test)]
 mod tests {
+    extern crate chrono;
     use ::{Message, Secp256k1};
     use ContextFlag;
     use key::{SecretKey, PublicKey};
     use aggsig::{sign_single, verify_single, export_secnonce_single};
     use pedersen::{Commitment, RangeProof};
     use rand::{Rng, thread_rng, OsRng};
-    use std::time::{SystemTime};
+
+    use bench::tests::chrono::prelude::*;
 
     use constants;
     use ffi;
 
     const LENGTH: usize = 100_000;
+    const NANO_TO_MILLIS: f64 = 1.0 / 1_000_000.0;
 
     #[test]
     fn bench_ecdsa_sign_efficiency() {
@@ -42,16 +45,14 @@ mod tests {
         let mut secret = SecretKey([0; 32]);
         thread_rng().fill_bytes(&mut secret.0);
 
-        let now = SystemTime::now();
-
+        let start = Utc::now().timestamp_nanos();
         for _ in 1..LENGTH+1 {
             secp.sign(&msg, &secret).unwrap();
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} signing)", used_time, LENGTH);
-        }
+        println!("spent time:\t{}ms/({} signing)", dur_ms, LENGTH);
     }
 
     #[test]
@@ -68,7 +69,7 @@ mod tests {
 
         let sig = secp.sign(&msg, &secret).unwrap();
 
-        let now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         let mut ok_count = 0;
         for _ in 1..LENGTH+1 {
@@ -76,11 +77,11 @@ mod tests {
                 ok_count += 1;
             }
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
+
         println!("ecdsa check ok:\t{}/{}", ok_count, LENGTH);
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} verify)", used_time, LENGTH);
-        }
+        println!("spent time:\t{}ms/({} verify)", dur_ms, LENGTH);
     }
 
     #[test]
@@ -92,16 +93,15 @@ mod tests {
         thread_rng().fill_bytes(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
-        let now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         for _ in 1..LENGTH+1 {
             sign_single(&secp, &msg, &sk, None, None, None).unwrap();
         }
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} signing)", used_time, LENGTH);
-        }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
+        println!("spent time:\t{}ms/({} signing)", dur_ms, LENGTH);
     }
 
     #[test]
@@ -115,7 +115,7 @@ mod tests {
 
         let sig=sign_single(&secp, &msg, &sk, None, None, None).unwrap();
 
-        let now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         let mut ok_count = 0;
         for _ in 1..LENGTH+1 {
@@ -123,11 +123,11 @@ mod tests {
                 ok_count += 1;
             }
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
+
         println!("aggsig check ok:\t{}/{}", ok_count, LENGTH);
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} verify)", used_time, LENGTH);
-        }
+        println!("spent time:\t{}ms/({} verify)", dur_ms, LENGTH);
     }
 
     #[test]
@@ -144,7 +144,7 @@ mod tests {
 
         let sig=sign_single(&secp, &msg, &sk, Some(&secnonce), Some(&pubnonce), Some(&pubnonce)).unwrap();
 
-        let now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         let mut ok_count = 0;
         for _ in 1..LENGTH+1 {
@@ -152,11 +152,11 @@ mod tests {
                 ok_count += 1;
             }
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
+
         println!("aggsig check ok:\t{}/{}", ok_count, LENGTH);
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} verify with pubnonce)", used_time, LENGTH);
-        }
+        println!("spent time:\t{}ms/({} verify with pubnonce)", dur_ms, LENGTH);
     }
 
     #[test]
@@ -168,19 +168,18 @@ mod tests {
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
 
-        let mut now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
         let mut bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
 
         for _ in 1..BP_LENGTH+1 {
             bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} bullet proof)", used_time, BP_LENGTH);
-        }
+        println!("spent time:\t{}ms/({} bullet proof)", dur_ms, BP_LENGTH);
 
-        now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
         let mut ok_count = 0;
         for _ in 1..BP_LENGTH+1 {
             let proof_range = secp.verify_bullet_proof(commit, bullet_proof, None).unwrap();
@@ -188,11 +187,11 @@ mod tests {
                 ok_count += 1;
             }
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
+
         println!("verify_bullet_proof ok:\t{}/{}", ok_count, BP_LENGTH);
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} verify bullet proof)", used_time, BP_LENGTH);
-        }
+        println!("spent time:\t{}ms/({} verify bullet proof)", dur_ms, BP_LENGTH);
     }
 
 
@@ -207,19 +206,18 @@ mod tests {
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
 
-        let mut now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
         let mut bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
 
         for _ in 1..BP_LENGTH+1 {
             bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} bullet proof with extra msg)", used_time, BP_LENGTH);
-        }
+        println!("spent time:\t{}ms/({} bullet proof with extra msg)", dur_ms, BP_LENGTH);
 
-        now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
         let mut ok_count = 0;
         for _ in 1..BP_LENGTH+1 {
             let proof_range = secp.verify_bullet_proof(commit, bullet_proof, Some(extra_data.clone())).unwrap();
@@ -227,11 +225,11 @@ mod tests {
                 ok_count += 1;
             }
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
+
         println!("verify_bullet_proof ok:\t{}/{}", ok_count, BP_LENGTH);
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} verify bullet proof with extra msg)", used_time, BP_LENGTH);
-        }
+        println!("spent time:\t{}ms/({} verify bullet proof with extra msg)", dur_ms, BP_LENGTH);
     }
 
     #[test]
@@ -245,28 +243,26 @@ mod tests {
         let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
         let value = 12345678;
 
-        let mut now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         for i in 1..BP_LENGTH+1 {
             commits.push(secp.commit(value + i as u64, blinding).unwrap());
             proofs.push(secp.bullet_proof(value + i as u64, blinding, blinding, None));
         }
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            let used_time_subsec_millis = elapsed.subsec_millis();
-            println!("spent time:\t{}.{:0<3}(s)/({} bullet proof creation w/o extra message)",
-                     used_time, used_time_subsec_millis, BP_LENGTH);
-        }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
 
-        now = SystemTime::now();
+        println!("spent time:\t{}ms/({} bullet proof creation w/o extra message)",
+                 dur_ms, BP_LENGTH);
+
+        let start = Utc::now().timestamp_nanos();
         let proof_range = secp.verify_bullet_proof_multi(commits, proofs, None);
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            let used_time_subsec_millis = elapsed.subsec_millis();
-            println!("spent time:\t{}.{:0<3}(s)/(1 batch verify for {} bullet proofs w/o extra message)",
-                     used_time, used_time_subsec_millis, BP_LENGTH);
-        }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
+
+        println!("spent time:\t{}ms/(1 batch verify for {} bullet proofs w/o extra message)",
+                 dur_ms, BP_LENGTH);
         println!("\nproof_range:\t{:#x?}", proof_range.unwrap());
     }
 
@@ -284,7 +280,7 @@ mod tests {
         let mut extra_data = [0u8;64];
         thread_rng().fill_bytes(&mut extra_data);
 
-        let mut now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         for i in 1..BP_LENGTH+1 {
             commits.push(secp.commit(value + i as u64, blinding).unwrap());
@@ -296,26 +292,22 @@ mod tests {
                 blinding,
                 Some(extra_data.to_vec().clone())));
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            let used_time_subsec_millis = elapsed.subsec_millis();
-            println!("spent time:\t{}.{:0<3}(s)/({} bullet proof creation w/ extra data)",
-                     used_time, used_time_subsec_millis, BP_LENGTH);
-        }
+        println!("spent time:\t{}ms/({} bullet proof creation w/ extra data)",
+                 dur_ms, BP_LENGTH);
 
-        now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
         let proof_range = secp.verify_bullet_proof_multi(
             commits,
             proofs,
             Some(extra_data_vec.clone()));
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            let used_time_subsec_millis = elapsed.subsec_millis();
-            println!("spent time:\t{}.{:0<3}(s)/(1 batch verify for {} bullet proofs w/ extra data)",
-                     used_time, used_time_subsec_millis, BP_LENGTH);
-        }
+        println!("spent time:\t{}ms/(1 batch verify for {} bullet proofs w/ extra data)",
+                 dur_ms, BP_LENGTH);
         println!("\nproof_range:\t{:#x?}", proof_range.unwrap());
     }
 
@@ -364,29 +356,27 @@ mod tests {
 
         //--- H1
 
-        let now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         for i in 1..PC_LENGTH+1 {
             let _commit = secp.commit(value+i as u64, r);
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} pedersen commitment with H1)", used_time, PC_LENGTH);
-        }
+        println!("spent time:\t{}ms/({} pedersen commitment with H1)", dur_ms, PC_LENGTH);
 
         //--- H2
 
-        let now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         for i in 1..PC_LENGTH+1 {
             let _commit = commit_v2(&secp, value+i as u64, r);
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
 
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} pedersen commitment with H2)", used_time, PC_LENGTH);
-        }
+        println!("spent time:\t{}ms/({} pedersen commitment with H2)", dur_ms, PC_LENGTH);
     }
 
     #[ignore]
@@ -400,7 +390,7 @@ mod tests {
         thread_rng().fill_bytes(&mut secret.0);
         let pubkey1 = PublicKey::from_secret_key(&secp, &secret).unwrap();
 
-        let now = SystemTime::now();
+        let start = Utc::now().timestamp_nanos();
 
         let mut ok_count = 0;
         for _ in 1..MAX_LENGTH+1 {
@@ -410,11 +400,11 @@ mod tests {
             }
             thread_rng().fill_bytes(&mut secret.0);
         }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
+
         println!("pubkey equal check ok:\t{}/{}", ok_count, MAX_LENGTH);
-        if let Ok(elapsed) = now.elapsed() {
-            let used_time = elapsed.as_secs();
-            println!("spent time:\t{}(s)/({} pubkey equal check)", used_time, MAX_LENGTH);
-        }
+        println!("spent time:\t{}ms/({} pubkey equal check)", dur_ms, MAX_LENGTH);
     }
 
 }
