@@ -43,6 +43,19 @@ const MAX_GENERATORS: size_t = 2*RANGEPROOF_NBITS*MAX_COMMITS_IN_RANGEPROOF;
 /// Shared Bullet Proof Generators (avoid recreating every time)
 static mut SHARED_BULLETGENERATORS: Option<*mut ffi::BulletproofGenerators> = None;
 
+// TODO: Check whether this matters if this is used with a different context; don't think it does
+fn shared_generators(ctx: *mut ffi::Context) -> *mut ffi::BulletproofGenerators {
+	unsafe {
+		match SHARED_BULLETGENERATORS.clone() {
+			Some(s) => s,
+			None => {
+				SHARED_BULLETGENERATORS = Some(ffi::secp256k1_bulletproof_generators_create(ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS));
+				SHARED_BULLETGENERATORS.unwrap()
+			}
+		}
+	}
+}
+
 /// A Pedersen commitment
 pub struct Commitment(pub [u8; constants::PEDERSEN_COMMITMENT_SIZE]);
 impl_array_newtype!(Commitment, u8, constants::PEDERSEN_COMMITMENT_SIZE);
@@ -672,146 +685,21 @@ impl Secp256k1 {
 		let blind_vec = map_vec!(blind_vec, |p| p.0.as_ptr());
 		let n_bits = 64;
 
-		let (extra_data_len, extra_data_ptr) = match extra_data {
-				Some(d) => (d.len(), d.as_ptr()),
-				None => (0, ptr::null()),
-		};
-
-		let _success = unsafe {
-			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
-			let gens;
-			{
-				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
-					gens = shared_gens;
-				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
-					SHARED_BULLETGENERATORS = Some(gens);
-				}
-			}
-
-			let result = ffi::secp256k1_bulletproof_rangeproof_prove(
-				self.ctx,
-				scratch,
-				gens,
-				proof.as_mut_ptr(),
-				&mut plen,
-				&value,
-				ptr::null(),	// min_values: NULL for all-zeroes minimum values to prove ranges above
-				blind_vec.as_ptr(),
-				1,
-				constants::GENERATOR_H.as_ptr(),
-				n_bits as size_t,
-				nonce.as_ptr(),
-				extra_data_ptr,
-				extra_data_len as size_t,
-			);
-
-//			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, *gens);
-			ffi::secp256k1_scratch_space_destroy(scratch);
-
-			result == 1
-		};
-
-		RangeProof {
-			proof: proof,
-			plen: plen as usize,
-		}
-	}
-
-	/// Produces an aggregate Bulletproof rangeproof for a set of Pedersen commitments.
-	/// If a message is passed, it will be truncated to 64 bytes
-	pub fn bullet_proof_agg(
-		&self,
-		values: Vec<u64>,
-		blinds: Vec<SecretKey>,
-		nonce: SecretKey,
-		extra_data: Option<Vec<u8>>
-	) -> RangeProof {
-		let mut proof = [0; constants::MAX_PROOF_SIZE];
-		let mut plen = constants::MAX_PROOF_SIZE as size_t;
-
-		let blind_vec = map_vec!(blinds, |p| p.0.as_ptr());
-		let n_bits = 64;
-
-		let (extra_data_len, extra_data_ptr) = match extra_data {
-			Some(d) => (d.len(), d.as_ptr()),
-			None => (0, ptr::null()),
-		};
-
-		let _success = unsafe {
-			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
-			let gens;
-			{
-				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
-					gens = shared_gens;
-				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
-					SHARED_BULLETGENERATORS = Some(gens);
-				}
-			}
-
-			let result = ffi::secp256k1_bulletproof_rangeproof_prove(
-				self.ctx,
-				scratch,
-				gens,
-				proof.as_mut_ptr(),
-				&mut plen,
-				values.as_ptr(),
-				ptr::null(),	// min_values: NULL for all-zeroes minimum values to prove ranges above
-				blind_vec.as_ptr(),
-				values.len(),
-				constants::GENERATOR_H.as_ptr(),
-				n_bits as size_t,
-				nonce.as_ptr(),
-				extra_data_ptr,
-				extra_data_len as size_t,
-			);
-
-//			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, *gens);
-			ffi::secp256k1_scratch_space_destroy(scratch);
-
-			result == 1
-		};
-
-		RangeProof {
-			proof: proof,
-			plen: plen as usize,
-		}
-	}
-
-	/// Produces a bullet proof for the provided value, using min and max
-	/// bounds, relying on the blinding factor and value. If a message is passed,
-	/// it will be truncated to 64 bytes
-	pub fn old_bullet_proof_do_not_use(
-		&self,
-		value: u64,
-		blind: SecretKey,
-		nonce: SecretKey,
-		extra_data: Option<Vec<u8>>
-	) -> RangeProof {
-		let mut proof = [0; constants::MAX_PROOF_SIZE];
-		let mut plen = constants::MAX_PROOF_SIZE as size_t;
-
-		let blind_vec:Vec<SecretKey> = vec![blind];
-		let blind_vec = map_vec!(blind_vec, |p| p.0.as_ptr());
-		let n_bits = 64;
-
 		let (extra_data_len, extra_data) = match extra_data {
-			Some(d) => (d.len(), d),
-			None => (0, vec![]),
+				Some(d) => (d.len(), d),
+				None => (0, vec![]),
 		};
 
 		let _success = unsafe {
-			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, 256 * MAX_WIDTH);
-			let gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), 256, 1);
+			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
 			let result = ffi::secp256k1_bulletproof_rangeproof_prove(
 				self.ctx,
 				scratch,
-				gens,
+				shared_generators(self.ctx),
 				proof.as_mut_ptr(),
 				&mut plen,
 				&value,
-				ptr::null(),
+				ptr::null(),	// min_values: NULL for all-zeroes minimum values to prove ranges above
 				blind_vec.as_ptr(),
 				1,
 				constants::GENERATOR_H.as_ptr(),
@@ -821,7 +709,7 @@ impl Secp256k1 {
 				extra_data_len as size_t,
 			);
 
-			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
+//			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, *gens);
 			ffi::secp256k1_scratch_space_destroy(scratch);
 
 			result == 1
@@ -842,27 +730,17 @@ impl Secp256k1 {
 	) -> Result<ProofRange, Error> {
 		let n_bits = 64;
 
-		let (extra_data_len, extra_data_ptr) = match extra_data {
-				Some(d) => (d.len(), d.as_ptr()),
-				None => (0, ptr::null()),
+		let (extra_data_len, extra_data) = match extra_data {
+				Some(d) => (d.len(), d),
+				None => (0, vec![]),
 		};
 
 		let success = unsafe {
 			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
-			let gens;
-			{
-				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
-					gens = shared_gens;
-				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
-					SHARED_BULLETGENERATORS = Some(gens);
-				}
-			}
-
 			let result = ffi::secp256k1_bulletproof_rangeproof_verify(
 				self.ctx,
 				scratch,
-				gens,
+				shared_generators(self.ctx),
 				proof.proof.as_ptr(),
 				proof.plen as size_t,
 				ptr::null(),	// min_values: NULL for all-zeroes minimum values to prove ranges above
@@ -870,76 +748,9 @@ impl Secp256k1 {
 				1,
 				n_bits as size_t,
 				constants::GENERATOR_H.as_ptr(),
-				extra_data_ptr,
+				extra_data.as_ptr(),
 				extra_data_len as size_t,
 			 );
-//			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
-			ffi::secp256k1_scratch_space_destroy(scratch);
-			result == 1
-		};
-
-		if success {
-			Ok(ProofRange {
-				min: 0,
-				max: u64::MAX,
-			})
-		} else {
-			Err(Error::InvalidRangeProof)
-		}
-	}
-
-	/// Verify with bullet proof that a committed value is positive
-	pub fn verify_bullet_proof_agg(
-		&self,
-		commits: Vec<Commitment>,
-		proof: RangeProof,
-		extra_data: Option<Vec<u8>>,
-	) -> Result<ProofRange, Error> {
-		let n_bits = 64;
-
-		let commit_vec_ptr = if commits.len()>0{
-			let commit_size = constants::PEDERSEN_COMMITMENT_SIZE;
-			let mut commit_vec = vec![0; commits.len() * commit_size];
-			for i in 0..commits.len() {
-				commit_vec[i * commit_size..(i + 1) * commit_size]
-					.clone_from_slice(&commits[i].0[..]);
-			}
-			commit_vec.as_ptr()
-		}else{
-			ptr::null()
-		};
-
-		let (extra_data_len, extra_data_ptr) = match extra_data {
-			Some(d) => (d.len(), d.as_ptr()),
-			None => (0, ptr::null()),
-		};
-
-		let success = unsafe {
-			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
-			let gens;
-			{
-				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
-					gens = shared_gens;
-				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
-					SHARED_BULLETGENERATORS = Some(gens);
-				}
-			}
-
-			let result = ffi::secp256k1_bulletproof_rangeproof_verify(
-				self.ctx,
-				scratch,
-				gens,
-				proof.proof.as_ptr(),
-				proof.plen as size_t,
-				ptr::null(),	// min_values: NULL for all-zeroes minimum values to prove ranges above
-				commit_vec_ptr,
-				commits.len(),
-				n_bits as size_t,
-				constants::GENERATOR_H.as_ptr(),
-				extra_data_ptr,
-				extra_data_len as size_t,
-			);
 //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
 			ffi::secp256k1_scratch_space_destroy(scratch);
 			result == 1
@@ -975,7 +786,7 @@ impl Secp256k1 {
 //		let min_values = vec![0; proofs.len()];
 
 		// array of generator multiplied by value in pedersen commitments (cannot be NULL)
-		let value_gen_vec_ptr = {
+		let value_gen_vec = {
 			let min_len = if proof_vec.len() > 0 {
 				proof_vec.len()
 			}else{
@@ -987,36 +798,29 @@ impl Secp256k1 {
 				value_gen_vec[i * gen_size..(i + 1) * gen_size]
 					.clone_from_slice(&constants::GENERATOR_H[..]);
 			}
-			value_gen_vec.as_ptr()
+			value_gen_vec
 		};
 
 		// converting vec of vecs to expected pointer
-		let (extra_data_vec_ptr, extra_data_lengths_ptr) = {
+		let (extra_data_vec, extra_data_lengths) = {
 			if extra_data_in.is_some() {
 				let ed = extra_data_in.unwrap();
 				let extra_data_vec = map_vec!(ed, |d| d.as_ptr());
 				let extra_data_lengths = map_vec![ed, |d| d.len()];
-				(extra_data_vec.as_ptr(), extra_data_lengths.as_ptr())
+				(extra_data_vec, extra_data_lengths)
 			} else {
-				(ptr::null(), ptr::null())
+				let extra_data_vec = vec![vec![].as_ptr(); proof_vec.len()];
+				let extra_data_lengths = vec![0; proof_vec.len()];
+				(extra_data_vec, extra_data_lengths)
 			}
 		};
 
 		let success = unsafe {
 			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
-			let gens;
-			{
-				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
-					gens = shared_gens;
-				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
-					SHARED_BULLETGENERATORS = Some(gens);
-				}
-			}
 			let result = ffi::secp256k1_bulletproof_rangeproof_verify_multi(
 				self.ctx,
 				scratch,
-				gens,
+				shared_generators(self.ctx),
 				proof_vec.as_ptr(),
 				proof_vec.len(),
 				proof_size,
@@ -1024,9 +828,9 @@ impl Secp256k1 {
 				commit_vec.as_ptr(),
 				1,
 				n_bits as size_t,
-				value_gen_vec_ptr,
-				extra_data_vec_ptr,
-				extra_data_lengths_ptr,
+				value_gen_vec.as_ptr(),
+				extra_data_vec.as_ptr(),
+				extra_data_lengths.as_ptr(),
 			 );
 //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
 			ffi::secp256k1_scratch_space_destroy(scratch);
@@ -1064,18 +868,9 @@ impl Secp256k1 {
 
 		let success = unsafe {
 			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
-			let gens;
-			{
-				if let Some(shared_gens) = SHARED_BULLETGENERATORS {
-					gens = shared_gens;
-				} else {
-					gens = ffi::secp256k1_bulletproof_generators_create(self.ctx, constants::GENERATOR_G.as_ptr(), MAX_GENERATORS, 1);
-					SHARED_BULLETGENERATORS = Some(gens);
-				}
-			}
 			let result = ffi::secp256k1_bulletproof_rangeproof_rewind(
 				self.ctx,
-				gens,
+				shared_generators(self.ctx),
 				&mut value_out,
 				blind_out.as_mut_ptr(),
 				proof.proof.as_ptr(),
@@ -1114,14 +909,15 @@ impl Secp256k1 {
 
 #[cfg(test)]
 mod tests {
-
-
+    extern crate chrono;
     use super::{Commitment, RangeProof, ProofMessage, Message, Secp256k1};
     use ContextFlag;
     use key::{ONE_KEY, ZERO_KEY, SecretKey};
 
     use rand::os::OsRng;
-	use rand::{Rng, thread_rng};
+    use rand::{Rng, thread_rng};
+
+    use pedersen::tests::chrono::prelude::*;
 
     #[test]
     fn test_verify_commit_sum_zero_keys() {
@@ -1391,6 +1187,44 @@ mod tests {
 		}
 	}
 
+	#[ignore]
+	#[test]
+	fn bench_bullet_proof_single_vs_multi() {
+		let nano_to_millis = 1.0 / 1_000_000.0;
+
+		let secp = Secp256k1::with_caps(ContextFlag::Commit);
+		let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+		let value = 12345678;
+
+		let increments = vec![1,2,5,10,100,200];
+
+		for v in increments {
+			let mut commits:Vec<Commitment> = vec![];
+			let mut proofs:Vec<RangeProof> = vec![];
+			for i in 0..v {
+				commits.push(secp.commit(value+i as u64, blinding).unwrap());
+				proofs.push(secp.bullet_proof(value+i as u64, blinding, blinding, None));
+			}
+			println!("--------");
+			println!("Comparing {} Proofs", v);
+			let start = Utc::now().timestamp_nanos();
+			for i in 0..v {
+				let proof_range = secp.verify_bullet_proof(commits[i].clone(), proofs[i].clone(), None).unwrap();
+				assert_eq!(proof_range.min, 0);
+			}
+			let fin = Utc::now().timestamp_nanos();
+			let dur_ms = (fin-start) as f64 * nano_to_millis;
+			println!("{} proofs single validated in {}ms", v, dur_ms);
+
+			let start = Utc::now().timestamp_nanos();
+			let proof_range = secp.verify_bullet_proof_multi(commits.clone(), proofs.clone(), None);
+			assert!(!proof_range.is_err());
+			let fin = Utc::now().timestamp_nanos();
+			let dur_ms = (fin-start) as f64 * nano_to_millis;
+			println!("{} proofs batch validated in {}ms", v, dur_ms);
+		}
+	}
+
 	#[test]
 	fn test_bullet_proof_verify_multi() {
 		let mut commits:Vec<Commitment> = vec![];
@@ -1421,7 +1255,7 @@ mod tests {
 			panic!("Bullet proof multi verify should have errored.");
 		}
 
-		//  batching verification on double elements w/o extra message data
+		//  batching verification on double elements w/t extra message data
 		commits = vec![];
 		proofs = vec![];
 		commits.push(secp.commit(value+1, blinding).unwrap());
@@ -1465,5 +1299,21 @@ mod tests {
 			panic!("Bullet proof multi verify should have error.");
 		}
 
+		//  batching verification on 1-100 elements w/o extra message data
+		println!("7");
+		commits = vec![];
+		proofs = vec![];
+		let mut errs = 0;
+		for i in 1..100 {
+			print!("\r\r\r{}", i);
+			commits.push(secp.commit(value+i as u64, blinding).unwrap());
+			proofs.push(secp.bullet_proof(value+i as u64, blinding, blinding, None));
+			let proof_range = secp.verify_bullet_proof_multi(commits.clone(), proofs.clone(), None);//.unwrap();
+			if proof_range.is_err() {
+				println!(" proofs batch verify failed");
+				errs += 1;
+			}
+		}
+		assert_eq!(errs, 0);
 	}
 }
