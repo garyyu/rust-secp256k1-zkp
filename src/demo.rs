@@ -25,7 +25,7 @@ mod tests {
     use key::{ZERO_KEY, ONE_KEY, SecretKey, PublicKey};
     use aggsig::{sign_single, verify_single, AggSigContext, export_secnonce_single, add_signatures_single};
 
-    use rand::{Rng, thread_rng, OsRng};
+    use rand::{Rng, thread_rng};
 
     #[test]
     fn test_show_g_and_h() {
@@ -275,7 +275,7 @@ mod tests {
         let excess = secp.commit_sum(vec![output1, output2], vec![input]).unwrap();
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let sig = secp.sign(&msg, &r4).unwrap();
@@ -370,7 +370,7 @@ mod tests {
         );
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let sig = secp.sign(&msg, &new_r4).unwrap();
@@ -426,7 +426,7 @@ mod tests {
         // sign it
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let sig = secp.sign(&msg, &r4).unwrap();
@@ -480,7 +480,7 @@ mod tests {
         // sign it only with k1 instead of (k1+k2)
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let new_sig = secp.sign(&msg, &k1).unwrap();
@@ -555,7 +555,7 @@ mod tests {
         // sign it only with k1 instead of (k1+k2)
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let sig = secp.sign(&msg, &k1).unwrap();
@@ -629,7 +629,7 @@ mod tests {
         // sign it only with k1 instead of (k1+k2)
 
         let mut new_msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut new_msg);
+        thread_rng().fill(&mut new_msg);
         let new_msg = Message::from_slice(&new_msg).unwrap();
 
         let new_sig = secp.sign(&new_msg, &new_k1).unwrap();
@@ -754,7 +754,7 @@ mod tests {
         // sign it only with k1 instead of (k1+k2)
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let sig = secp.sign(&msg, &k1).unwrap();
@@ -791,7 +791,7 @@ mod tests {
         println!("Demo Bullet Proof without extra message data...\n");
 
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
-        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinding = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
         let bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
@@ -811,7 +811,7 @@ mod tests {
         println!("\nDemo Bullet Proof with extra message data...\n");
 
         let extra_data = [0u8;32].to_vec();
-        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinding = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
         let bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
@@ -831,8 +831,8 @@ mod tests {
 
         println!("\nDemo rewinding. Extracts the value and blinding factor...\n");
 
-        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
-        let nonce = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinding = SecretKey::new(&secp, &mut thread_rng());
+        let nonce = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
         let bullet_proof = secp.bullet_proof(value, blinding, nonce, Some(extra_data.clone()));
@@ -866,9 +866,9 @@ mod tests {
         println!("Demo Bullet Proof Aggregation w/o extra message data...\n");
 
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
-        let blinds = vec![SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                             SecretKey::new(&secp, &mut OsRng::new().unwrap())];
-        let nonce = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinds = vec![SecretKey::new(&secp, &mut thread_rng()),
+                             SecretKey::new(&secp, &mut thread_rng())];
+        let nonce = SecretKey::new(&secp, &mut thread_rng());
         let values = vec![12345678,
                           87654321];
         let commits = vec![secp.commit(values[0], blinds[0]).unwrap(),
@@ -907,10 +907,10 @@ mod tests {
 
         println!("Demo Bullet Proof Aggregation for 3 commits...\n");
 
-        let blinds = vec![SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap())];
-        let nonce = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinds = vec![SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng())];
+        let nonce = SecretKey::new(&secp, &mut thread_rng());
         let values = vec![12345678,
                           87654321,
                           123456789];
@@ -933,11 +933,11 @@ mod tests {
 
         println!("Demo Bullet Proof Aggregation for 4 commits...\n");
 
-        let blinds = vec![SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap())];
-        let nonce = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinds = vec![SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng())];
+        let nonce = SecretKey::new(&secp, &mut thread_rng());
         let values = vec![12345678,
                           87654321,
                           123456789,
@@ -962,13 +962,13 @@ mod tests {
 
         println!("Demo Bullet Proof Aggregation for 6 commits...\n");
 
-        let blinds = vec![SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap()),
-                          SecretKey::new(&secp, &mut OsRng::new().unwrap())];
-        let nonce = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinds = vec![SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng()),
+                          SecretKey::new(&secp, &mut thread_rng())];
+        let nonce = SecretKey::new(&secp, &mut thread_rng());
         let values = vec![10001,
                           10002,
                           10003,
@@ -1006,7 +1006,7 @@ mod tests {
         println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk, sk);
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
         let sig = sign_single(&secp, &msg, &sk, None, None, None).unwrap();
         println!("msg:\t\t\t{:?}", msg);
@@ -1046,7 +1046,7 @@ mod tests {
         }
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let mut partial_sigs:Vec<AggSigPartialSignature> = vec![];
@@ -1095,7 +1095,7 @@ mod tests {
         let secp = Secp256k1::with_caps(ContextFlag::Full);
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         //--- Generate nonce: k1,k2,k3
@@ -1205,7 +1205,7 @@ mod tests {
         let secp = Secp256k1::with_caps(ContextFlag::Full);
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         //--- Generate nonce: k1,k2,k3
@@ -1359,7 +1359,7 @@ mod tests {
 
             //--- step 3. Select inputs using desired selection strategy
             //simulate an UTXO as the input
-            let blinding_input = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let blinding_input = SecretKey::new(&secp, &mut thread_rng());
             let input = commit(in_amount, blinding_input);
 
             //--- step 7. Skipped.
@@ -1368,17 +1368,17 @@ mod tests {
 
             //--- step 4. Create change_output
             //--- step 5. Select blinding factor for change_output
-            let blinding_change_output = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let blinding_change_output = SecretKey::new(&secp, &mut thread_rng());
             let change_output = commit(in_amount-out_amount-fee, blinding_change_output);
 
             //--- step 9. Calculate total blinding excess sum xS1 (private scalar), for all inputs(-) and outputs(+)
             let xS1 = secp.blind_sum(vec![blinding_change_output], vec![blinding_input]).unwrap();
 
             //--- step 10. Select a random nonce kS (private scalar)
-            let kS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let kS = SecretKey::new(&secp, &mut thread_rng());
 
             //--- step 11. Subtract random value oS (kernel offset) from xS1. Calculate xS = xS1 - oS
-            let oS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let oS = SecretKey::new(&secp, &mut thread_rng());
             let xS = secp.blind_sum(vec![xS1], vec![oS]).unwrap();
 
             sender_sk = xS; // save for final round
@@ -1404,14 +1404,14 @@ mod tests {
 
             //--- step 2. Create receiver_output
             //--- step 3. Choose random blinding factor for receiver_output xR (private scalar)
-            let xR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let xR = SecretKey::new(&secp, &mut thread_rng());
             let output = commit(amount, xR);
 
             //--- step 4. Calculate message M = fee | lock_height
             let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
 
             //--- step 5. Choose random nonce kR (private scalar)
-            let kR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let kR = SecretKey::new(&secp, &mut thread_rng());
 
             //--- step 6. Multiply xR and kR by generator G to create public curve points xRG and kRG
             let xRG = PublicKey::from_secret_key(&secp, &xR).unwrap();
@@ -1529,7 +1529,7 @@ mod tests {
 
             //--- step 3. Select inputs using desired selection strategy
             //simulate an UTXO as the input
-            let blinding_input = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let blinding_input = SecretKey::new(&secp, &mut thread_rng());
             let input = commit(in_amount, blinding_input);
 
             //--- step 7. Skipped.
@@ -1538,17 +1538,17 @@ mod tests {
 
             //--- step 4. Create change_output
             //--- step 5. Select blinding factor for change_output
-            let blinding_change_output = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let blinding_change_output = SecretKey::new(&secp, &mut thread_rng());
             let change_output = commit(in_amount-out_amount-fee, blinding_change_output);
 
             //--- step 9. Calculate total blinding excess sum xS1 (private scalar), for all inputs(-) and outputs(+)
             let xS1 = secp.blind_sum(vec![blinding_change_output], vec![blinding_input]).unwrap();
 
             //--- step 10. Select a random nonce kS (private scalar)
-            let kS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let kS = SecretKey::new(&secp, &mut thread_rng());
 
             //--- step 11. Subtract random value oS (kernel offset) from xS1. Calculate xS = xS1 - oS
-            let oS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let oS = SecretKey::new(&secp, &mut thread_rng());
             let xS = secp.blind_sum(vec![xS1], vec![oS]).unwrap();
 
             sender_sk = xS; // save for final round
@@ -1574,14 +1574,14 @@ mod tests {
 
             //--- step 2. Create receiver_output
             //--- step 3. Choose random blinding factor for receiver_output xR (private scalar)
-            let xR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let xR = SecretKey::new(&secp, &mut thread_rng());
             let output = commit(0, xR);
 
             //--- step 4. Calculate message M = fee | lock_height
             let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
 
             //--- step 5. Choose random nonce kR (private scalar)
-            let kR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let kR = SecretKey::new(&secp, &mut thread_rng());
 
             //--- step 6. Multiply xR and kR by generator G to create public curve points xRG and kRG
             let xRG = PublicKey::from_secret_key(&secp, &xR).unwrap();
@@ -1706,7 +1706,7 @@ mod tests {
 
             //--- step 3. Select inputs using desired selection strategy
             //simulate an UTXO as the input
-            let blinding_input = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let blinding_input = SecretKey::new(&secp, &mut thread_rng());
             let input = commit(0, blinding_input);
 
             //--- step 7. Skipped.
@@ -1715,17 +1715,17 @@ mod tests {
 
             //--- step 4. Create change_output
             //--- step 5. Select blinding factor for change_output
-            let blinding_change_output = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let blinding_change_output = SecretKey::new(&secp, &mut thread_rng());
             let change_output = commit(0, blinding_change_output);
 
             //--- step 9. Calculate total blinding excess sum xS1 (private scalar), for all inputs(-) and outputs(+)
             let xS1 = secp.blind_sum(vec![blinding_change_output], vec![blinding_input]).unwrap();
 
             //--- step 10. Select a random nonce kS (private scalar)
-            let kS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let kS = SecretKey::new(&secp, &mut thread_rng());
 
             //--- step 11. Subtract random value oS (kernel offset) from xS1. Calculate xS = xS1 - oS
-            let oS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let oS = SecretKey::new(&secp, &mut thread_rng());
             let xS = secp.blind_sum(vec![xS1], vec![oS]).unwrap();
 
             sender_sk = xS; // save for final round
@@ -1754,14 +1754,14 @@ mod tests {
 
             //--- step 2. Create receiver_output
             //--- step 3. Choose random blinding factor for receiver_output xR (private scalar)
-            let xR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let xR = SecretKey::new(&secp, &mut thread_rng());
             let output = commit(0, xR);
 
             //--- step 4. Calculate message M = fee | lock_height
             let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
 
             //--- step 5. Choose random nonce kR (private scalar)
-            let kR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let kR = SecretKey::new(&secp, &mut thread_rng());
 
             //--- step 6. Multiply xR and kR by generator G to create public curve points xRG and kRG
             let xRG = PublicKey::from_secret_key(&secp, &xR).unwrap();
@@ -1889,7 +1889,7 @@ mod tests {
 
             //--- step 3. Select inputs using desired selection strategy
             //simulate an UTXO as the input
-            let blinding_input = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let blinding_input = SecretKey::new(&secp, &mut thread_rng());
             let input = commit(0, blinding_input);
 
             //--- step 7. Skipped.
@@ -1898,14 +1898,14 @@ mod tests {
 
             //--- step 4. Create change_output
             //--- step 5. Select blinding factor for change_output
-            let blinding_change_output = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let blinding_change_output = SecretKey::new(&secp, &mut thread_rng());
             let change_output = commit(0, blinding_change_output);
 
             //--- step 9. Calculate total blinding excess sum xS (private scalar), for all inputs(-) and outputs(+)
             let xS = secp.blind_sum(vec![blinding_change_output], vec![blinding_input]).unwrap();
 
             //--- step 10. Select a random nonce kS (private scalar)
-            let kS = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let kS = SecretKey::new(&secp, &mut thread_rng());
 
             sender_sk = xS; // save for final round
             sender_kS = kS; // save for final round
@@ -1930,14 +1930,14 @@ mod tests {
 
             //--- step 2. Create receiver_output
             //--- step 3. Choose random blinding factor for receiver_output xR (private scalar)
-            let xR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let xR = SecretKey::new(&secp, &mut thread_rng());
             let output = commit(0, xR);
 
             //--- step 4. Calculate message M = fee | lock_height
             let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
 
             //--- step 5. Choose random nonce kR (private scalar)
-            let kR = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+            let kR = SecretKey::new(&secp, &mut thread_rng());
 
             //--- step 6. Multiply xR and kR by generator G to create public curve points xRG and kRG
             let xRG = PublicKey::from_secret_key(&secp, &xR).unwrap();

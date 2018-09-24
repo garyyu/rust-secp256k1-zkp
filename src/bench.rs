@@ -24,7 +24,7 @@ mod tests {
     use key::{SecretKey, PublicKey};
     use aggsig::{sign_single, verify_single, export_secnonce_single};
     use pedersen::{Commitment, RangeProof};
-    use rand::{Rng, thread_rng, OsRng};
+    use rand::{Rng, thread_rng};
 
     use bench::tests::chrono::prelude::*;
 
@@ -39,11 +39,11 @@ mod tests {
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let mut secret = SecretKey([0; 32]);
-        thread_rng().fill_bytes(&mut secret.0);
+        thread_rng().fill(&mut secret.0);
 
         let start = Utc::now().timestamp_nanos();
         for _ in 1..LENGTH+1 {
@@ -60,11 +60,11 @@ mod tests {
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let mut secret = SecretKey([0; 32]);
-        thread_rng().fill_bytes(&mut secret.0);
+        thread_rng().fill(&mut secret.0);
         let pubkey = PublicKey::from_secret_key(&secp, &secret).unwrap();
 
         let sig = secp.sign(&msg, &secret).unwrap();
@@ -90,7 +90,7 @@ mod tests {
         let (sk, _pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let start = Utc::now().timestamp_nanos();
@@ -110,7 +110,7 @@ mod tests {
         let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let sig=sign_single(&secp, &msg, &sk, None, None, None).unwrap();
@@ -136,7 +136,7 @@ mod tests {
         let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
         let secnonce = export_secnonce_single(&secp).unwrap();
@@ -164,7 +164,7 @@ mod tests {
         const BP_LENGTH: usize = 1_000;
 
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
-        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinding = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
 
@@ -202,7 +202,7 @@ mod tests {
         let extra_data = [0u8;64].to_vec();
 
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
-        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinding = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
 
@@ -240,7 +240,7 @@ mod tests {
         let mut proofs:Vec<RangeProof> = vec![];
 
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
-        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinding = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
 
         let start = Utc::now().timestamp_nanos();
@@ -275,10 +275,10 @@ mod tests {
         let mut extra_data_vec = vec![];
 
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
-        let blinding = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+        let blinding = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let mut extra_data = [0u8;64];
-        thread_rng().fill_bytes(&mut extra_data);
+        thread_rng().fill(&mut extra_data);
 
         let start = Utc::now().timestamp_nanos();
 
@@ -351,7 +351,7 @@ mod tests {
         }
 
         let mut r = SecretKey([0;32]);
-        thread_rng().fill_bytes(&mut r.0);
+        thread_rng().fill(&mut r.0);
         let value: u64 = 12345678;
 
         //--- H1
@@ -387,7 +387,7 @@ mod tests {
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
 
         let mut secret = SecretKey([0; 32]);
-        thread_rng().fill_bytes(&mut secret.0);
+        thread_rng().fill(&mut secret.0);
         let pubkey1 = PublicKey::from_secret_key(&secp, &secret).unwrap();
 
         let start = Utc::now().timestamp_nanos();
@@ -398,7 +398,7 @@ mod tests {
             if pubkey1 == pubkey2{
                 ok_count += 1;
             }
-            thread_rng().fill_bytes(&mut secret.0);
+            thread_rng().fill(&mut secret.0);
         }
         let fin = Utc::now().timestamp_nanos();
         let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
