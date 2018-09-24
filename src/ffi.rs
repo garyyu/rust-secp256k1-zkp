@@ -75,7 +75,7 @@ impl_raw_debug!(Generator);
 
 /// Library-internal representation of a Secp256k1 public key
 #[repr(C)]
-pub struct PublicKey([c_uchar; 64]);
+pub struct PublicKey(pub [c_uchar; 64]);
 impl_array_newtype!(PublicKey, c_uchar, 64);
 impl_raw_debug!(PublicKey);
 
@@ -298,8 +298,10 @@ extern "C" {
                                         msg32: *const c_uchar,
                                         seckey32: *const c_uchar,
                                         secnonce32: *const c_uchar,
+                                        extra32: *const c_uchar,
                                         pubnonce_for_e: *const PublicKey,
                                         pubnonce_total: *const PublicKey,
+                                        pubkey_for_e: *const PublicKey,
                                         seed32: *const c_uchar)
                                            -> c_int;
 
@@ -308,6 +310,8 @@ extern "C" {
                                           msg32: *const c_uchar,
                                           pubnonce: *const PublicKey,
                                           pk: *const PublicKey,
+                                          pk_total: *const PublicKey,
+                                          extra_pubkey: *const PublicKey,
                                           is_partial: c_uint)
                                            -> c_int;
 
@@ -496,15 +500,21 @@ extern "C" {
 		gens: *const BulletproofGenerators,
 		proof: *mut c_uchar,
 		plen: *mut size_t,
+		tau_x: *mut c_uchar,
+		t_one: *mut PublicKey,
+		t_two: *mut PublicKey,
 		value: *const uint64_t,
 		min_value: *const uint64_t,
 		blind: *const *const c_uchar,
+		commits: *const *const c_uchar,
 		n_commits: size_t,
 		value_gen: *const c_uchar,
 		nbits: size_t,
 		nonce: *const c_uchar,
+		private_nonce: *const c_uchar,
 		extra_commit: *const c_uchar,
-		extra_commit_len: size_t
+		extra_commit_len: size_t,
+		message: *const c_uchar,
 	) -> c_int;
 
 	pub fn secp256k1_bulletproof_rangeproof_verify(
@@ -550,6 +560,7 @@ extern "C" {
 		value_gen: *const c_uchar,
 		nonce: *const c_uchar,
 		extra_commit: *const c_uchar,
-		extra_commit_len: size_t
+		extra_commit_len: size_t,
+		message: *mut c_uchar,
 	) -> c_int;
 }

@@ -19,10 +19,17 @@
 
 use Secp256k1;
 use ffi;
-use rand::{Rng, thread_rng, OsRng};
+use rand::{OsRng, RngCore, thread_rng};
 use {Message, Error, Signature, AggSigPartialSignature};
 use key::{SecretKey, PublicKey};
 use std::ptr;
+
+/// The 256 bits 0
+const ZERO_256: [u8; 32] = [0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0,
+    0, 0, 0, 0, 0, 0, 0, 0];
+
 
 /// Single-Signer (plain old Schnorr, sans-multisig) export nonce
 /// Returns: Ok(SecretKey) on success
@@ -50,14 +57,17 @@ pub fn export_secnonce_single(secp: &Secp256k1) ->
 /// In: 
 /// msg: the message to sign
 /// seckey: the secret key
+/// extra: if Some(), add this key to s
 /// secnonce: if Some(SecretKey), the secret nonce to use. If None, generate a nonce
 /// pubnonce: if Some(PublicKey), overrides the public nonce to encode as part of e
 /// final_nonce_sum: if Some(PublicKey), overrides the public nonce to encode as part of e
-pub fn sign_single(secp: &Secp256k1, msg:&Message, seckey:&SecretKey, secnonce:Option<&SecretKey>, pubnonce:Option<&PublicKey>, final_nonce_sum:Option<&PublicKey> ) ->
+#[deprecated(since="0.1.0", note="All aggsig-related api functions need review and are subject to change.")]
+pub fn sign_single(secp: &Secp256k1, msg:&Message, seckey:&SecretKey, secnonce:Option<&SecretKey>, extra: Option<&SecretKey>, pubnonce:Option<&PublicKey>, pubkey_for_e: Option<&PublicKey>, final_nonce_sum:Option<&PublicKey> ) ->
                     Result<Signature, Error> {
     let mut retsig = Signature::from(ffi::Signature::new());
     let mut seed = [0; 32];
-    thread_rng().fill_bytes(&mut seed);
+    let mut rng = thread_rng();
+    RngCore::fill_bytes(&mut rng, &mut seed);
 
     let secnonce = match secnonce {
         Some(n) => n.as_ptr(),
@@ -69,7 +79,17 @@ pub fn sign_single(secp: &Secp256k1, msg:&Message, seckey:&SecretKey, secnonce:O
         None => ptr::null(),
     };
 
+    let extra = match extra {
+        Some(e) => e.as_ptr(),
+        None => ptr::null(),
+    };
+
     let final_nonce_sum = match final_nonce_sum {
+        Some(n) => n.as_ptr(),
+        None => ptr::null(),
+    };
+
+    let pe = match pubkey_for_e {
         Some(n) => n.as_ptr(),
         None => ptr::null(),
     };
@@ -80,8 +100,10 @@ pub fn sign_single(secp: &Secp256k1, msg:&Message, seckey:&SecretKey, secnonce:O
                                           msg.as_ptr(),
                                           seckey.as_ptr(),
                                           secnonce,
+                                          extra,
                                           pubnonce,
                                           final_nonce_sum,
+                                          pe,
                                           seed.as_ptr())
     };
     if retval == 0 {
@@ -97,11 +119,22 @@ pub fn sign_single(secp: &Secp256k1, msg:&Message, seckey:&SecretKey, secnonce:O
 /// msg: the message to verify
 /// pubnonce: if Some(PublicKey) overrides the public nonce used to calculate e
 /// pubkey: the public key
+/// pubkey_total: The total of all public keys (for the message in e)
 /// is_partial: whether this is a partial sig, or a fully-combined sig
-pub fn verify_single(secp: &Secp256k1, sig:&Signature, msg:&Message, pubnonce:Option<&PublicKey>, pubkey:&PublicKey, is_partial: bool) ->
+pub fn verify_single(secp: &Secp256k1, sig:&Signature, msg:&Message, pubnonce:Option<&PublicKey>, pubkey:&PublicKey, pubkey_total_for_e: Option<&PublicKey>, extra_pubkey: Option<&PublicKey>, is_partial: bool) ->
                      bool {
     let pubnonce = match pubnonce {
         Some(n) => n.as_ptr(),
+        None => ptr::null(),
+    };
+
+    let pe = match pubkey_total_for_e {
+        Some(n) => n.as_ptr(),
+        None => ptr::null(),
+    };
+
+    let extra = match extra_pubkey {
+        Some(e) => e.as_ptr(),
         None => ptr::null(),
     };
 
@@ -110,12 +143,18 @@ pub fn verify_single(secp: &Secp256k1, sig:&Signature, msg:&Message, pubnonce:Op
         false => 0,
     };
 
+    if (sig.0).0.ends_with(&ZERO_256) || (pubkey.0).0.starts_with(&ZERO_256) {
+        return false;
+    }
+
     let retval = unsafe {
         ffi::secp256k1_aggsig_verify_single(secp.ctx,
                                             sig.as_ptr(),
                                             msg.as_ptr(),
                                             pubnonce,
                                             pubkey.as_ptr(),
+                                            pe,
+                                            extra,
                                             is_partial)
     };
     match retval {
@@ -161,7 +200,8 @@ impl AggSigContext {
     /// Creates new aggsig context with a new random seed
     pub fn new(secp: &Secp256k1, pubkeys: &Vec<PublicKey>) -> AggSigContext {
         let mut seed = [0; 32];
-        thread_rng().fill_bytes(&mut seed);
+        let mut rng = thread_rng();
+        RngCore::fill_bytes(&mut rng, &mut seed);
         let pubkeys:Vec<*const ffi::PublicKey> = pubkeys.into_iter()
             .map(|p| p.as_ptr())
             .collect();
@@ -275,9 +315,10 @@ impl Drop for AggSigContext {
 #[cfg(test)]
 mod tests {
     use ContextFlag;
-    use {Message, AggSigPartialSignature};
+    use ffi;
+    use {Message, Signature, AggSigPartialSignature};
     use super::{AggSigContext, Secp256k1, sign_single, verify_single, export_secnonce_single, add_signatures_single};
-    use rand::{Rng, thread_rng};
+    use rand::{RngCore, thread_rng};
     use key::{SecretKey, PublicKey};
 
     #[test]
@@ -301,7 +342,8 @@ mod tests {
         }
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        let mut rng = thread_rng();
+        RngCore::fill_bytes(&mut rng, &mut msg);
         let msg = Message::from_slice(&msg).unwrap();
         let mut partial_sigs:Vec<AggSigPartialSignature> = vec![];
         for i in 0..numkeys {
@@ -340,21 +382,93 @@ mod tests {
         println!("Performing aggsig single context with seckey, pubkey: {:?},{:?}", sk, pk);
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        let mut rng = thread_rng();
+        RngCore::fill_bytes(&mut rng, &mut msg);
         let msg = Message::from_slice(&msg).unwrap();
-        let sig=sign_single(&secp, &msg, &sk, None, None, None).unwrap();
+        let sig=sign_single(&secp, &msg, &sk, None, None, None, None, None).unwrap();
 
         println!("Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}", sig, msg, pk);
-        let result = verify_single(&secp, &sig, &msg, None, &pk, false);
+        let result = verify_single(&secp, &sig, &msg, None, &pk, None, None, false);
         println!("Signature verification single (correct): {}", result);
         assert!(result==true);
 
         let mut msg = [0u8; 32];
-        thread_rng().fill_bytes(&mut msg);
+        let mut rng = thread_rng();
+        RngCore::fill_bytes(&mut rng, &mut msg);
         let msg = Message::from_slice(&msg).unwrap();
         println!("Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}", sig, msg, pk);
-        let result = verify_single(&secp, &sig, &msg, None, &pk, false);
+        let result = verify_single(&secp, &sig, &msg, None, &pk, None, None, false);
         println!("Signature verification single (wrong message): {}", result);
+        assert!(result==false);
+
+        // test optional extra key
+        let mut msg = [0u8; 32];
+        let mut rng = thread_rng();
+        RngCore::fill_bytes(&mut rng, &mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+        let (sk_extra, pk_extra) = secp.generate_keypair(&mut thread_rng()).unwrap();
+        let sig=sign_single(&secp, &msg, &sk, None, Some(&sk_extra), None, None, None).unwrap();
+        let result = verify_single(&secp, &sig, &msg, None, &pk, None, Some(&pk_extra), false);
+        assert!(result==true);
+    }
+
+    #[test]
+    fn test_aggsig_fuzz() {
+        let secp = Secp256k1::with_caps(ContextFlag::Full);
+        let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!("Performing aggsig single context with seckey, pubkey: {:?},{:?}", sk, pk);
+
+        let mut msg = [0u8; 32];
+        let mut rng = thread_rng();
+        RngCore::fill_bytes(&mut rng, &mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+        let sig=sign_single(&secp, &msg, &sk, None, None, None, None, None).unwrap();
+
+        // force sig[32..] as 0 to simulate Fuzz test
+        let corrupted = &mut [0u8; 64];
+        let mut i = 0;
+        for elem in corrupted[..32].iter_mut() {
+            *elem = sig.0[i];
+            i += 1;
+        }
+        let corrupted_sig: Signature = Signature{0:ffi::Signature(*corrupted)};
+        println!("Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}", corrupted_sig, msg, pk);
+        let result = verify_single(&secp, &corrupted_sig, &msg, None, &pk, None, None, false);
+        println!("Signature verification single (correct): {}", result);
+        assert!(result==false);
+
+        // force sig[0..32] as 0 to simulate Fuzz test
+        let corrupted = &mut [0u8; 64];
+        let mut i = 32;
+        for elem in corrupted[32..].iter_mut() {
+            *elem = sig.0[i];
+            i += 1;
+        }
+        let corrupted_sig: Signature = Signature{0:ffi::Signature(*corrupted)};
+        println!("Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}", corrupted_sig, msg, pk);
+        let result = verify_single(&secp, &corrupted_sig, &msg, None, &pk, None, None, false);
+        println!("Signature verification single (correct): {}", result);
+        assert!(result==false);
+
+        // force pk as 0 to simulate Fuzz test
+        let zero_pk = PublicKey::new();
+        println!("Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}", sig, msg, zero_pk);
+        let result = verify_single(&secp, &sig, &msg, None, &zero_pk, None, None, false);
+        println!("Signature verification single (correct): {}", result);
+        assert!(result==false);
+
+        // force pk[0..32] as 0 to simulate Fuzz test
+        let corrupted = &mut [0u8; 64];
+        let mut i = 32;
+        for elem in corrupted[32..].iter_mut() {
+            *elem = pk.0[i];
+            i += 1;
+        }
+        let corrupted_pk: PublicKey = PublicKey{0:ffi::PublicKey(*corrupted)};
+        println!("Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}", sig, msg, corrupted_pk);
+        let result = verify_single(&secp, &sig, &msg, None, &corrupted_pk, None, None, false);
+        println!("Signature verification single (correct): {}", result);
         assert!(result==false);
     }
 
@@ -380,33 +494,34 @@ mod tests {
 
             // Random message
             let mut msg = [0u8; 32];
-            thread_rng().fill_bytes(&mut msg);
+            let mut rng = thread_rng();
+            RngCore::fill_bytes(&mut rng, &mut msg);
             let msg = Message::from_slice(&msg).unwrap();
 
+            // Add public keys (for storing in e)
+            let mut pk_sum = pk2.clone();
+            let _ = pk_sum.add_exp_assign(&secp, &sk1);
+
             // Receiver signs 
-            let sig1=sign_single(&secp, &msg, &sk1, Some(&secnonce_1), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sig1=sign_single(&secp, &msg, &sk1, Some(&secnonce_1), None, Some(&nonce_sum), Some(&pk_sum), Some(&nonce_sum)).unwrap();
 
             // Sender verifies receivers sig
-            let result = verify_single(&secp, &sig1, &msg, Some(&nonce_sum), &pk1, true);
+            let result = verify_single(&secp, &sig1, &msg, Some(&nonce_sum), &pk1, Some(&pk_sum), None, true);
             assert!(result==true);
 
             // Sender signs 
-            let sig2=sign_single(&secp, &msg, &sk2, Some(&secnonce_2), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sig2=sign_single(&secp, &msg, &sk2, Some(&secnonce_2), None, Some(&nonce_sum), Some(&pk_sum), Some(&nonce_sum)).unwrap();
 
             // Receiver verifies sender's sig
-            let result = verify_single(&secp, &sig2, &msg, Some(&nonce_sum), &pk2, true);
+            let result = verify_single(&secp, &sig2, &msg, Some(&nonce_sum), &pk2, Some(&pk_sum), None, true);
             assert!(result==true);
 
             let sig_vec = vec![&sig1, &sig2];
             // Receiver calculates final sig
             let final_sig = add_signatures_single(&secp, sig_vec, &nonce_sum).unwrap();
 
-            // Add public keys
-            let mut pk_sum = pk2.clone();
-            let _ = pk_sum.add_exp_assign(&secp, &sk1);
-
             // Verification of final sig:
-            let result = verify_single(&secp, &final_sig, &msg, None, &pk_sum, false);
+            let result = verify_single(&secp, &final_sig, &msg, None, &pk_sum, Some(&pk_sum), None, false);
             assert!(result==true);
         }
     }
