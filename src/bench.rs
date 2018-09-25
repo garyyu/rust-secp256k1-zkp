@@ -96,7 +96,7 @@ mod tests {
         let start = Utc::now().timestamp_nanos();
 
         for _ in 1..LENGTH+1 {
-            sign_single(&secp, &msg, &sk, None, None, None).unwrap();
+            sign_single(&secp, &msg, &sk, None, None, None, None, None).unwrap();
         }
 
         let fin = Utc::now().timestamp_nanos();
@@ -113,13 +113,13 @@ mod tests {
         thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
 
-        let sig=sign_single(&secp, &msg, &sk, None, None, None).unwrap();
+        let sig=sign_single(&secp, &msg, &sk, None, None, None, None, None).unwrap();
 
         let start = Utc::now().timestamp_nanos();
 
         let mut ok_count = 0;
         for _ in 1..LENGTH+1 {
-            if true == verify_single(&secp, &sig, &msg, None, &pk, false){
+            if true == verify_single(&secp, &sig, &msg, None, &pk, None, None, false){
                 ok_count += 1;
             }
         }
@@ -142,13 +142,13 @@ mod tests {
         let secnonce = export_secnonce_single(&secp).unwrap();
         let pubnonce = PublicKey::from_secret_key(&secp, &secnonce).unwrap();
 
-        let sig=sign_single(&secp, &msg, &sk, Some(&secnonce), Some(&pubnonce), Some(&pubnonce)).unwrap();
+        let sig=sign_single(&secp, &msg, &sk, Some(&secnonce), None, Some(&pubnonce), None, Some(&pubnonce)).unwrap();
 
         let start = Utc::now().timestamp_nanos();
 
         let mut ok_count = 0;
         for _ in 1..LENGTH+1 {
-            if true == verify_single(&secp, &sig, &msg, Some(&pubnonce), &pk, false){
+            if true == verify_single(&secp, &sig, &msg, Some(&pubnonce), &pk, None, None, false){
                 ok_count += 1;
             }
         }
@@ -169,10 +169,10 @@ mod tests {
         let commit = secp.commit(value, blinding).unwrap();
 
         let start = Utc::now().timestamp_nanos();
-        let mut bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
+        let mut bullet_proof = secp.bullet_proof(value, blinding, blinding, None, None);
 
         for _ in 1..BP_LENGTH+1 {
-            bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
+            bullet_proof = secp.bullet_proof(value, blinding, blinding, None, None);
         }
         let fin = Utc::now().timestamp_nanos();
         let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
@@ -207,10 +207,10 @@ mod tests {
         let commit = secp.commit(value, blinding).unwrap();
 
         let start = Utc::now().timestamp_nanos();
-        let mut bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
+        let mut bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()), None);
 
         for _ in 1..BP_LENGTH+1 {
-            bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
+            bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()), None);
         }
         let fin = Utc::now().timestamp_nanos();
         let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;
@@ -247,7 +247,7 @@ mod tests {
 
         for i in 1..BP_LENGTH+1 {
             commits.push(secp.commit(value + i as u64, blinding).unwrap());
-            proofs.push(secp.bullet_proof(value + i as u64, blinding, blinding, None));
+            proofs.push(secp.bullet_proof(value + i as u64, blinding, blinding, None, None));
         }
 
         let fin = Utc::now().timestamp_nanos();
@@ -290,7 +290,7 @@ mod tests {
                 value + i as u64,
                 blinding,
                 blinding,
-                Some(extra_data.to_vec().clone())));
+                Some(extra_data.to_vec().clone()), None));
         }
         let fin = Utc::now().timestamp_nanos();
         let dur_ms = (fin-start) as f64 * NANO_TO_MILLIS;

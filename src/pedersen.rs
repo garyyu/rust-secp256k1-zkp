@@ -758,7 +758,8 @@ impl Secp256k1 {
 		values: Vec<u64>,
 		blinds: Vec<SecretKey>,
 		nonce: SecretKey,
-		extra_data: Option<Vec<u8>>
+		extra_data: Option<Vec<u8>>,
+		message: Option<ProofMessage>
 	) -> RangeProof {
 		let mut proof = [0; constants::MAX_PROOF_SIZE];
 		let mut plen = constants::MAX_PROOF_SIZE as size_t;
@@ -771,6 +772,24 @@ impl Secp256k1 {
 			None => (0, ptr::null()),
 		};
 
+		let message_ptr = match message {
+			Some(mut m) => {
+				while m.len() < constants::BULLET_PROOF_MSG_SIZE {
+					m.push(0u8);
+				}
+				m.truncate(constants::BULLET_PROOF_MSG_SIZE);
+				m.as_ptr()
+			},
+			None => ptr::null(),
+		};
+
+		// TODO: expose multi-party support
+		let tau_x = ptr::null_mut();
+		let t_one = ptr::null_mut();
+		let t_two = ptr::null_mut();
+		let commits = ptr::null_mut();
+		let private_nonce = ptr::null();
+
 		let _success = unsafe {
 			let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
 			let result = ffi::secp256k1_bulletproof_rangeproof_prove(
@@ -779,15 +798,21 @@ impl Secp256k1 {
 				shared_generators(self.ctx),
 				proof.as_mut_ptr(),
 				&mut plen,
+				tau_x,
+				t_one,
+				t_two,
 				values.as_ptr(),
 				ptr::null(),	// min_values: NULL for all-zeroes minimum values to prove ranges above
 				blind_vec.as_ptr(),
+				commits,
 				values.len(),
 				constants::GENERATOR_H.as_ptr(),
 				n_bits as size_t,
 				nonce.as_ptr(),
+				private_nonce,
 				extra_data_ptr,
 				extra_data_len as size_t,
+				message_ptr,
 			);
 
 //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, *gens);

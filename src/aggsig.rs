@@ -61,7 +61,6 @@ pub fn export_secnonce_single(secp: &Secp256k1) ->
 /// secnonce: if Some(SecretKey), the secret nonce to use. If None, generate a nonce
 /// pubnonce: if Some(PublicKey), overrides the public nonce to encode as part of e
 /// final_nonce_sum: if Some(PublicKey), overrides the public nonce to encode as part of e
-#[deprecated(since="0.1.0", note="All aggsig-related api functions need review and are subject to change.")]
 pub fn sign_single(secp: &Secp256k1, msg:&Message, seckey:&SecretKey, secnonce:Option<&SecretKey>, extra: Option<&SecretKey>, pubnonce:Option<&PublicKey>, pubkey_for_e: Option<&PublicKey>, final_nonce_sum:Option<&PublicKey> ) ->
                     Result<Signature, Error> {
     let mut retsig = Signature::from(ffi::Signature::new());

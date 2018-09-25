@@ -794,7 +794,7 @@ mod tests {
         let blinding = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
-        let bullet_proof = secp.bullet_proof(value, blinding, blinding, None);
+        let bullet_proof = secp.bullet_proof(value, blinding, blinding, None, None);
 
         println!("Value:\t\t{}\nBlinding:\t{:?}\nCommitment:\t{:?}\n\nBullet Proof:\t{:?}",
                  value,
@@ -814,7 +814,7 @@ mod tests {
         let blinding = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
-        let bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()));
+        let bullet_proof = secp.bullet_proof(value, blinding, blinding, Some(extra_data.clone()), None);
 
         println!("Value:\t\t{}\nBlinding:\t{:?}\nExtra data:\t{:?}\nCommitment:\t{:?}\n\nBullet Proof:\t{:?}",
                  value,
@@ -835,7 +835,7 @@ mod tests {
         let nonce = SecretKey::new(&secp, &mut thread_rng());
         let value = 12345678;
         let commit = secp.commit(value, blinding).unwrap();
-        let bullet_proof = secp.bullet_proof(value, blinding, nonce, Some(extra_data.clone()));
+        let bullet_proof = secp.bullet_proof(value, blinding, nonce, Some(extra_data.clone()), None);
 
         println!("Value:\t\t{}\nBlinding:\t{:?}\nExtra data:\t{:?}\nNonce:\t{:?}\nCommitment:\t{:?}\n\nBullet Proof:\t{:?}",
                  value,
@@ -873,7 +873,7 @@ mod tests {
                           87654321];
         let commits = vec![secp.commit(values[0], blinds[0]).unwrap(),
                            secp.commit(values[1], blinds[1]).unwrap()];
-        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, None);
+        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, None, None);
 
         println!("Values:\t\t{:#?}\nBlinds:\t{:#?}\nCommits:\t{:#?}\n\nBullet Proof:\t{:?}",
                  values,
@@ -890,7 +890,7 @@ mod tests {
         println!("\nDemo Bullet Proof Aggregation w/ extra message data...\n");
 
         let extra_data = [0u8;32].to_vec();
-        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, Some(extra_data.clone()));
+        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, Some(extra_data.clone()), None);
 
         println!("Values:\t\t{:#?}\nBlinds:\t{:#?}\nExtra data:\t{:?}\nCommits:\t{:#?}\n\nBullet Proof:\t{:?}",
                  values,
@@ -917,7 +917,7 @@ mod tests {
         let commits = vec![secp.commit(values[0], blinds[0]).unwrap(),
                            secp.commit(values[1], blinds[1]).unwrap(),
                            secp.commit(values[2], blinds[2]).unwrap()];
-        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, None);
+        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, None, None);
 
         println!("Values:\t\t{:#?}\nBlinds:\t{:#?}\nCommits:\t{:#?}\n\nBullet Proof:\t{:?}",
                  values,
@@ -946,7 +946,7 @@ mod tests {
                            secp.commit(values[1], blinds[1]).unwrap(),
                            secp.commit(values[2], blinds[2]).unwrap(),
                            secp.commit(values[3], blinds[3]).unwrap()];
-        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, None);
+        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, None, None);
 
         println!("Values:\t\t{:#?}\nBlinds:\t{:#?}\nCommits:\t{:#?}\n\nBullet Proof:\t{:?}",
                  values,
@@ -981,7 +981,7 @@ mod tests {
                            secp.commit(values[3], blinds[3]).unwrap(),
                            secp.commit(values[4], blinds[4]).unwrap(),
                            secp.commit(values[5], blinds[5]).unwrap()];
-        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, None);
+        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce, None, None);
 
         println!("Values:\t\t{:#?}\nBlinds:\t{:#?}\nCommits:\t{:#?}\n\nBullet Proof:\t{:?}",
                  values,
@@ -1008,11 +1008,11 @@ mod tests {
         let mut msg = [0u8; 32];
         thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
-        let sig = sign_single(&secp, &msg, &sk, None, None, None).unwrap();
+        let sig = sign_single(&secp, &msg, &sk, None, None, None, None, None).unwrap();
         println!("msg:\t\t\t{:?}", msg);
         println!("\nschnorr sig:\t\t{:?}", sig);
 
-        let result = verify_single(&secp, &sig, &msg, None, &pk, false);
+        let result = verify_single(&secp, &sig, &msg, None, &pk, None, None, false);
         if true == result {
             println!("signature check:\tOK");
         }else{
@@ -1119,12 +1119,12 @@ mod tests {
         println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk1, sk1);
 
         // e=hash(R.x, m)    s=k1+e*p1    sig1=(s,r1)
-        let sig1 = sign_single(&secp, &msg, &sk1, Some(&secnonce_1), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+        let sig1 = sign_single(&secp, &msg, &sk1, Some(&secnonce_1), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
         println!("msg:\t\t\t{:?}", msg);
         println!("\nschnorr sig1:\t\t{:?}", sig1);
 
         // sig1.s*G-e*P1 = k1*G+e*p1*G-e*P1 = R1,   check R1.x == sig1.r ?
-        let result = verify_single(&secp, &sig1, &msg, Some(&nonce_sum), &pk1, true);
+        let result = verify_single(&secp, &sig1, &msg, Some(&nonce_sum), &pk1, None, None, true);
         if true == result {
             println!("sig1 signature check:\tOK");
         }else{
@@ -1140,12 +1140,12 @@ mod tests {
         println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk2, sk2);
 
         // e=hash(R.x, m)    s=k2+e*p2    sig2=(s,r2)
-        let sig2 = sign_single(&secp, &msg, &sk2, Some(&secnonce_2), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+        let sig2 = sign_single(&secp, &msg, &sk2, Some(&secnonce_2), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
         println!("msg:\t\t\t{:?}", msg);
         println!("\nschnorr sig2:\t\t{:?}", sig2);
 
         // sig2.s*G-e*P2 = k2*G+e*p2*G-e*P2 = R2,   check R2.x == sig2.r ?
-        let result = verify_single(&secp, &sig2, &msg, Some(&nonce_sum), &pk2, true);
+        let result = verify_single(&secp, &sig2, &msg, Some(&nonce_sum), &pk2, None, None, true);
         if true == result {
             println!("sig2 signature check:\tOK");
         }else{
@@ -1161,12 +1161,12 @@ mod tests {
         println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk3, sk3);
 
         // e=hash(R.x, m)    s=k3+e*p3    sig3=(s,r3)
-        let sig3 = sign_single(&secp, &msg, &sk3, Some(&secnonce_3), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+        let sig3 = sign_single(&secp, &msg, &sk3, Some(&secnonce_3), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
         println!("msg:\t\t\t{:?}", msg);
         println!("\nschnorr sig3:\t\t{:?}", sig3);
 
         // sig3.s*G-e*P3 = k3*G+e*p3*G-e*P3 = R3,   check R3.x == sig3.r ?
-        let result = verify_single(&secp, &sig3, &msg, Some(&nonce_sum), &pk3, true);
+        let result = verify_single(&secp, &sig3, &msg, Some(&nonce_sum), &pk3, None, None, true);
         if true == result {
             println!("sig3 signature check:\tOK");
         }else{
@@ -1185,7 +1185,7 @@ mod tests {
 
         println!("\nCombined sig:\t{:?}\n\tmsg:\t{:?}\n\tpk_sum:\t{:?}", combined_sig, msg, pk_sum);
         // sig.s*G-e*P = k*G+e*p*G-e*P = R,   check R.x == sig.r ?
-        let result = verify_single(&secp, &combined_sig, &msg, Some(&nonce_sum), &pk_sum, false);
+        let result = verify_single(&secp, &combined_sig, &msg, Some(&nonce_sum), &pk_sum, None, None, false);
         if true==result {
             println!("\nSignature Batch Verification:\tOK");
         }else{
@@ -1229,12 +1229,12 @@ mod tests {
         println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk1, sk1);
 
         // e=hash(R.x, m)    s=k1+e*p1    sig1=(s,r1)
-        let sig1 = sign_single(&secp, &msg, &sk1, Some(&secnonce_1), None, None).unwrap();
+        let sig1 = sign_single(&secp, &msg, &sk1, Some(&secnonce_1), None, None, None, None).unwrap();
         println!("msg:\t\t\t{:?}", msg);
         println!("\nschnorr sig1:\t\t{:?}", sig1);
 
         // sig1.s*G-e*P1 = k1*G+e*p1*G-e*P1 = R1,   check R1.x == sig1.r ?
-        let result = verify_single(&secp, &sig1, &msg, None, &pk1, false);
+        let result = verify_single(&secp, &sig1, &msg, None, &pk1, None, None, false);
         if true == result {
             println!("sig1 signature check:\tOK");
         }else{
@@ -1250,12 +1250,12 @@ mod tests {
         println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk2, sk2);
 
         // e=hash(R.x, m)    s=k2+e*p2    sig2=(s,r2)
-        let sig2 = sign_single(&secp, &msg, &sk2, Some(&secnonce_2), None, None).unwrap();
+        let sig2 = sign_single(&secp, &msg, &sk2, Some(&secnonce_2), None, None, None, None).unwrap();
         println!("msg:\t\t\t{:?}", msg);
         println!("\nschnorr sig2:\t\t{:?}", sig2);
 
         // sig2.s*G-e*P2 = k2*G+e*p2*G-e*P2 = R2,   check R2.x == sig2.r ?
-        let result = verify_single(&secp, &sig2, &msg, None, &pk2, false);
+        let result = verify_single(&secp, &sig2, &msg, None, &pk2, None, None, false);
         if true == result {
             println!("sig2 signature check:\tOK");
         }else{
@@ -1271,12 +1271,12 @@ mod tests {
         println!("public key (P):\t\t{:?}\nprivate key (p):\t{:?}", pk3, sk3);
 
         // e=hash(R.x, m)    s=k3+e*p3    sig3=(s,r3)
-        let sig3 = sign_single(&secp, &msg, &sk3, Some(&secnonce_3), None, None).unwrap();
+        let sig3 = sign_single(&secp, &msg, &sk3, Some(&secnonce_3), None, None, None, None).unwrap();
         println!("msg:\t\t\t{:?}", msg);
         println!("\nschnorr sig3:\t\t{:?}", sig3);
 
         // sig3.s*G-e*P3 = k3*G+e*p3*G-e*P3 = R3,   check R3.x == sig3.r ?
-        let result = verify_single(&secp, &sig3, &msg, None, &pk3, false);
+        let result = verify_single(&secp, &sig3, &msg, None, &pk3, None, None, false);
         if true == result {
             println!("sig3 signature check:\tOK");
         }else{
@@ -1309,7 +1309,7 @@ mod tests {
         //
         // Because hash() is not a linear function, above equation not equal to R
         // This signature will definitely fail
-        let result = verify_single(&secp, &combined_sig, &msg, Some(&nonce_sum), &pk_sum, false);
+        let result = verify_single(&secp, &combined_sig, &msg, Some(&nonce_sum), &pk_sum, None, None, false);
         if true==result {
             println!("\nSignature Batch Verification:\tOK");
         }else{
@@ -1432,7 +1432,7 @@ mod tests {
             //--- step 7. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
             //--- step 8. Compute Recipient Schnorr signature sR = kR + e * xR
             let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
-            let sR = sign_single(&secp, &msg, &xR, Some(&kR), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sR = sign_single(&secp, &msg, &xR, Some(&kR), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
 
             //--- step 9. Add sR, xRG, kRG to Slate
             //--- step 10. Create wallet output function rF that stores receiver_output in wallet
@@ -1455,7 +1455,7 @@ mod tests {
             //--- step 2. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
             //--- step 3. Verify sR by verifying kRG = sRG - e * xRG
             let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
-            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, true);
+            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, None, None, true);
             if true==result {
                 println!("Signature 'sR' Verification:\tOK");
             }else{
@@ -1465,7 +1465,7 @@ mod tests {
             //--- step 4. Compute Sender Schnorr signature sS = kS + e * xS
             let xS = sender_sk; // load sender's private key , which is saved in 1st round
             let kS = sender_kS; // load sender's secret nonce, which is saved in 1st round
-            let sS = sign_single(&secp, &msg, &xS, Some(&kS), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sS = sign_single(&secp, &msg, &xS, Some(&kS), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
 
             //--- step 5. Calculate final signature s = (sS+sR, kSG+kRG)
             let sig_vec = vec![&sR, &sS];
@@ -1485,7 +1485,7 @@ mod tests {
             }
 
             //--- step 7. Verify s against excess values in final transaction using xG
-            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, false);
+            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, None, None, false);
             if true==result {
                 println!("Signature 's' Verification:\tOK");
             }else{
@@ -1602,7 +1602,7 @@ mod tests {
             //--- step 7. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
             //--- step 8. Compute Recipient Schnorr signature sR = kR + e * xR
             let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
-            let sR = sign_single(&secp, &msg, &xR, Some(&kR), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sR = sign_single(&secp, &msg, &xR, Some(&kR), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
 
             //--- step 9. Add sR, xRG, kRG to Slate
             //--- step 10. Create wallet output function rF that stores receiver_output in wallet
@@ -1625,7 +1625,7 @@ mod tests {
             //--- step 2. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
             //--- step 3. Verify sR by verifying kRG = sRG - e * xRG
             let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
-            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, true);
+            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, None, None, true);
             if true==result {
                 println!("Signature 'sR' Verification:\tOK");
             }else{
@@ -1635,7 +1635,7 @@ mod tests {
             //--- step 4. Compute Sender Schnorr signature sS = kS + e * xS
             let xS = sender_sk; // load sender's private key , which is saved in 1st round
             let kS = sender_kS; // load sender's secret nonce, which is saved in 1st round
-            let sS = sign_single(&secp, &msg, &xS, Some(&kS), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sS = sign_single(&secp, &msg, &xS, Some(&kS), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
 
             //--- step 5. Calculate final signature s = (sS+sR, kSG+kRG)
             let sig_vec = vec![&sR, &sS];
@@ -1655,7 +1655,7 @@ mod tests {
             }
 
             //--- step 7. Verify s against excess values in final transaction using xG
-            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, false);
+            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, None, None, false);
             if true==result {
                 println!("Signature 's' Verification:\tOK");
             }else{
@@ -1782,7 +1782,7 @@ mod tests {
             //--- step 7. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
             //--- step 8. Compute Recipient Schnorr signature sR = kR + e * xR
             let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
-            let sR = sign_single(&secp, &msg, &xR, Some(&kR), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sR = sign_single(&secp, &msg, &xR, Some(&kR), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
 
             //--- step 9. Add sR, xRG, kRG to Slate
             //--- step 10. Create wallet output function rF that stores receiver_output in wallet
@@ -1805,7 +1805,7 @@ mod tests {
             //--- step 2. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
             //--- step 3. Verify sR by verifying kRG = sRG - e * xRG
             let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
-            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, true);
+            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, None, None, true);
             if true==result {
                 println!("Signature 'sR' Verification:\tOK");
             }else{
@@ -1815,7 +1815,7 @@ mod tests {
             //--- step 4. Compute Sender Schnorr signature sS = kS + e * xS
             let xS = sender_sk; // load sender's private key , which is saved in 1st round
             let kS = sender_kS; // load sender's secret nonce, which is saved in 1st round
-            let sS = sign_single(&secp, &msg, &xS, Some(&kS), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sS = sign_single(&secp, &msg, &xS, Some(&kS), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
 
             //--- step 5. Calculate final signature s = (sS+sR, kSG+kRG)
             let sig_vec = vec![&sR, &sS];
@@ -1837,7 +1837,7 @@ mod tests {
             }
 
             //--- step 7. Verify s against excess values in final transaction using xG
-            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, false);
+            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, None, None, false);
             if true==result {
                 println!("Signature 's' Verification:\tOK");
             }else{
@@ -1957,7 +1957,7 @@ mod tests {
             //--- step 7. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
             //--- step 8. Compute Recipient Schnorr signature sR = kR + e * xR
             let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
-            let sR = sign_single(&secp, &msg, &xR, Some(&kR), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sR = sign_single(&secp, &msg, &xR, Some(&kR), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
 
             //--- step 9. Add sR, xRG, kRG to Slate
             //--- step 10. Create wallet output function rF that stores receiver_output in wallet
@@ -1980,7 +1980,7 @@ mod tests {
             //--- step 2. Compute Schnorr challenge e = SHA256(M | kRG + kSG)
             //--- step 3. Verify sR by verifying kRG = sRG - e * xRG
             let nonce_sum = PublicKey::from_combination(&secp, vec![&kRG, &kSG]).unwrap();
-            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, true);
+            let result = verify_single(&secp, &sR, &msg, Some(&nonce_sum), &xRG, None, None, true);
             if true==result {
                 println!("Signature 'sR' Verification:\tOK");
             }else{
@@ -1990,7 +1990,7 @@ mod tests {
             //--- step 4. Compute Sender Schnorr signature sS = kS + e * xS
             let xS = sender_sk; // load sender's private key , which is saved in 1st round
             let kS = sender_kS; // load sender's secret nonce, which is saved in 1st round
-            let sS = sign_single(&secp, &msg, &xS, Some(&kS), Some(&nonce_sum), Some(&nonce_sum)).unwrap();
+            let sS = sign_single(&secp, &msg, &xS, Some(&kS), None, Some(&nonce_sum), None, Some(&nonce_sum)).unwrap();
 
             //--- step 5. Calculate final signature s = (sS+sR, kSG+kRG)
             let sig_vec = vec![&sR, &sS];
@@ -2009,7 +2009,7 @@ mod tests {
             }
 
             //--- step 7. Verify s against excess values in final transaction using xG
-            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, false);
+            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, None, None, false);
             if true==result {
                 println!("Signature 's' Verification:\tOK");
             }else{
