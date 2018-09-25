@@ -32,13 +32,10 @@ use ffi;
 use key::{self, SecretKey};
 use rand::{OsRng, RngCore};
 use serde::{de, ser};
-use serialize::hex::ToHex;
 
 const MAX_WIDTH: usize = 1 << 20;
 const SCRATCH_SPACE_SIZE: size_t = 256 * MAX_WIDTH;
-const MAX_COMMITS_IN_RANGEPROOF: size_t = 1 << 10;
-const RANGEPROOF_NBITS: size_t = 64;
-const MAX_GENERATORS: size_t = 2 * RANGEPROOF_NBITS * MAX_COMMITS_IN_RANGEPROOF;
+const MAX_GENERATORS: size_t = 256;
 
 /// Shared Bullet Proof Generators (avoid recreating every time)
 static mut SHARED_BULLETGENERATORS: Option<*mut ffi::BulletproofGenerators> = None;
@@ -87,24 +84,6 @@ impl Commitment {
         unsafe {
             if ffi::secp256k1_pedersen_commitment_to_pubkey(secp.ctx, &mut pk, self.as_ptr()) == 1 {
                 Ok(key::PublicKey::from_secp256k1_pubkey(pk))
-            } else {
-                Err(InvalidPublicKey)
-            }
-        }
-    }
-
-    /// Converts a public key to a commitment (v=0)
-    pub fn from_pubkey(secp: &Secp256k1, pubkey: &key::PublicKey) -> Result<Commitment, Error> {
-        let mut commit = [0; 33];
-
-        unsafe {
-            if ffi::secp256k1_pedersen_pubkey_to_commitment(
-                secp.ctx,
-                commit.as_mut_ptr(),
-                pubkey.as_ptr(),
-            ) == 1
-            {
-                Ok(Commitment(commit))
             } else {
                 Err(InvalidPublicKey)
             }
@@ -370,41 +349,6 @@ impl Secp256k1 {
         Ok(Commitment(commit))
     }
 
-    /// Creates a pedersen commitment from a value and a blinding factor
-    pub fn commit_i(&self, value: i64, blind: SecretKey) -> Result<Commitment, Error> {
-        if self.caps != ContextFlag::Commit {
-            return Err(Error::IncapableContext);
-        }
-        let mut commit = [0; 33];
-
-        if value >= 0 {
-            let v: u64 = value as u64;
-            unsafe {
-                ffi::secp256k1_pedersen_commit(
-                    self.ctx,
-                    commit.as_mut_ptr(),
-                    blind.as_ptr(),
-                    v,
-                    constants::GENERATOR_H.as_ptr(),
-                    constants::GENERATOR_G.as_ptr(),
-                )
-            };
-        } else {
-            let v: u64 = (-value) as u64;
-            unsafe {
-                ffi::secp256k1_pedersen_minus_commit(
-                    self.ctx,
-                    commit.as_mut_ptr(),
-                    blind.as_ptr(),
-                    v,
-                    constants::GENERATOR_H.as_ptr(),
-                    constants::GENERATOR_G.as_ptr(),
-                )
-            };
-        }
-        Ok(Commitment(commit))
-    }
-
     /// Convenience method to Create a pedersen commitment only from a value,
     /// with a zero blinding factor
     pub fn commit_value(&self, value: u64) -> Result<Commitment, Error> {
@@ -412,7 +356,7 @@ impl Secp256k1 {
             return Err(Error::IncapableContext);
         }
         let mut commit = [0; 33];
-        let zblind = [0; 32];
+        let zblind = [0u8; 32];
 
         unsafe {
             ffi::secp256k1_pedersen_commit(
@@ -757,82 +701,6 @@ impl Secp256k1 {
         }
     }
 
-    /// Produces an aggregate Bulletproof rangeproof for a set of Pedersen commitments.
-    /// If a message is passed, it will be truncated to 64 bytes
-    pub fn bullet_proof_agg(
-        &self,
-        values: Vec<u64>,
-        blinds: Vec<SecretKey>,
-        nonce: SecretKey,
-        extra_data: Option<Vec<u8>>,
-        message: Option<ProofMessage>,
-    ) -> RangeProof {
-        let mut proof = [0; constants::MAX_PROOF_SIZE];
-        let mut plen = constants::MAX_PROOF_SIZE as size_t;
-
-        let blind_vec = map_vec!(blinds, |p| p.0.as_ptr());
-        let n_bits = 64;
-
-        let (extra_data_len, extra_data_ptr) = match extra_data {
-            Some(d) => (d.len(), d.as_ptr()),
-            None => (0, ptr::null()),
-        };
-
-        let message_ptr = match message {
-            Some(mut m) => {
-                while m.len() < constants::BULLET_PROOF_MSG_SIZE {
-                    m.push(0u8);
-                }
-                m.truncate(constants::BULLET_PROOF_MSG_SIZE);
-                m.as_ptr()
-            }
-            None => ptr::null(),
-        };
-
-        // TODO: expose multi-party support
-        let tau_x = ptr::null_mut();
-        let t_one = ptr::null_mut();
-        let t_two = ptr::null_mut();
-        let commits = ptr::null_mut();
-        let private_nonce = ptr::null();
-
-        let _success = unsafe {
-            let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
-            let result = ffi::secp256k1_bulletproof_rangeproof_prove(
-                self.ctx,
-                scratch,
-                shared_generators(self.ctx),
-                proof.as_mut_ptr(),
-                &mut plen,
-                tau_x,
-                t_one,
-                t_two,
-                values.as_ptr(),
-                ptr::null(), // min_values: NULL for all-zeroes minimum values to prove ranges above
-                blind_vec.as_ptr(),
-                commits,
-                values.len(),
-                constants::GENERATOR_H.as_ptr(),
-                n_bits as size_t,
-                nonce.as_ptr(),
-                private_nonce,
-                extra_data_ptr,
-                extra_data_len as size_t,
-                message_ptr,
-            );
-
-            //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, *gens);
-            ffi::secp256k1_scratch_space_destroy(scratch);
-
-            result == 1
-        };
-
-        RangeProof {
-            proof: proof,
-            plen: plen as usize,
-        }
-    }
-
     /// Verify with bullet proof that a committed value is positive
     pub fn verify_bullet_proof(
         &self,
@@ -861,63 +729,6 @@ impl Secp256k1 {
                 n_bits as size_t,
                 constants::GENERATOR_H.as_ptr(),
                 extra_data.as_ptr(),
-                extra_data_len as size_t,
-            );
-            //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
-            ffi::secp256k1_scratch_space_destroy(scratch);
-            result == 1
-        };
-
-        if success {
-            Ok(ProofRange {
-                min: 0,
-                max: u64::MAX,
-            })
-        } else {
-            Err(Error::InvalidRangeProof)
-        }
-    }
-
-    /// Verify with bullet proof that a committed value is positive
-    pub fn verify_bullet_proof_agg(
-        &self,
-        commits: Vec<Commitment>,
-        proof: RangeProof,
-        extra_data: Option<Vec<u8>>,
-    ) -> Result<ProofRange, Error> {
-        let n_bits = 64;
-
-        let commit_vec_ptr = if commits.len() > 0 {
-            let commit_size = constants::PEDERSEN_COMMITMENT_SIZE;
-            let mut commit_vec = vec![0; commits.len() * commit_size];
-            for i in 0..commits.len() {
-                commit_vec[i * commit_size..(i + 1) * commit_size]
-                    .clone_from_slice(&commits[i].0[..]);
-            }
-            commit_vec.as_ptr()
-        } else {
-            ptr::null()
-        };
-
-        let (extra_data_len, extra_data_ptr) = match extra_data {
-            Some(d) => (d.len(), d.as_ptr()),
-            None => (0, ptr::null()),
-        };
-
-        let success = unsafe {
-            let scratch = ffi::secp256k1_scratch_space_create(self.ctx, SCRATCH_SPACE_SIZE);
-            let result = ffi::secp256k1_bulletproof_rangeproof_verify(
-                self.ctx,
-                scratch,
-                shared_generators(self.ctx),
-                proof.proof.as_ptr(),
-                proof.plen as size_t,
-                ptr::null(), // min_values: NULL for all-zeroes minimum values to prove ranges above
-                commit_vec_ptr,
-                commits.len(),
-                n_bits as size_t,
-                constants::GENERATOR_H.as_ptr(),
-                extra_data_ptr,
                 extra_data_len as size_t,
             );
             //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
