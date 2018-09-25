@@ -24,11 +24,11 @@ path = "src/lib.rs"
 unstable = []
 default = []
 bullet-proof-sizing = []
-dev = ["clippy"]
+#dev = ["clippy"]
 
 [dependencies]
 arrayvec = "0.3"
-clippy = {version = "0.0", optional = true}
+#clippy = {version = "0.0", optional = true}
 rand = "0.5"
 libc = "0.2"
 rustc-serialize = "0.3"
