@@ -22,6 +22,7 @@ use std::mem;
 use std::ptr;
 use std::u64;
 
+use serialize::hex::ToHex;
 use ContextFlag;
 use Error::{self, InvalidPublicKey};
 use Secp256k1;

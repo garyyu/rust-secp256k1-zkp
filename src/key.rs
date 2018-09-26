@@ -18,7 +18,7 @@
 use arrayvec::ArrayVec;
 use rand::Rng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serialize::{Decodable, Decoder, Encodable, Encoder};
+use serialize::{hex::ToHex, Decodable, Decoder, Encodable, Encoder};
 use std::marker;
 
 use super::Error::{self, IncapableContext, InvalidPublicKey, InvalidSecretKey};

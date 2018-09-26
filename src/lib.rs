@@ -47,6 +47,7 @@ extern crate rand;
 
 use libc::size_t;
 use rand::Rng;
+use serialize::hex::ToHex;
 use std::{error, fmt, ops, ptr};
 
 #[macro_use]
