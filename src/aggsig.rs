@@ -18,7 +18,7 @@
 
 use ffi;
 use key::{PublicKey, SecretKey};
-use rand::{thread_rng, OsRng, RngCore};
+use rand::{prelude::thread_rng, Rng};
 use std::ptr;
 use Secp256k1;
 use {AggSigPartialSignature, Error, Message, Signature};
@@ -34,9 +34,9 @@ const ZERO_256: [u8; 32] = [
 /// msg: the message to sign
 /// seckey: the secret key
 pub fn export_secnonce_single(secp: &Secp256k1) -> Result<SecretKey, Error> {
-    let mut return_key = SecretKey::new(&secp, &mut OsRng::new().unwrap());
+    let mut return_key = SecretKey::new(&secp, &mut thread_rng());
     let mut seed = [0u8; 32];
-    thread_rng().fill_bytes(&mut seed);
+    thread_rng().fill(&mut seed);
     let retval = unsafe {
         ffi::secp256k1_aggsig_export_secnonce_single(
             secp.ctx,
@@ -59,6 +59,10 @@ pub fn export_secnonce_single(secp: &Secp256k1) -> Result<SecretKey, Error> {
 /// secnonce: if Some(SecretKey), the secret nonce to use. If None, generate a nonce
 /// pubnonce: if Some(PublicKey), overrides the public nonce to encode as part of e
 /// final_nonce_sum: if Some(PublicKey), overrides the public nonce to encode as part of e
+#[deprecated(
+    since = "0.1.0",
+    note = "All aggsig-related api functions need review and are subject to change."
+)]
 pub fn sign_single(
     secp: &Secp256k1,
     msg: &Message,
@@ -71,8 +75,7 @@ pub fn sign_single(
 ) -> Result<Signature, Error> {
     let mut retsig = Signature::from(ffi::Signature::new());
     let mut seed = [0u8; 32];
-    let mut rng = thread_rng();
-    RngCore::fill_bytes(&mut rng, &mut seed);
+    thread_rng().fill(&mut seed);
 
     let secnonce = match secnonce {
         Some(n) => n.as_ptr(),
@@ -221,8 +224,7 @@ impl AggSigContext {
     /// Creates new aggsig context with a new random seed
     pub fn new(secp: &Secp256k1, pubkeys: &Vec<PublicKey>) -> AggSigContext {
         let mut seed = [0u8; 32];
-        let mut rng = thread_rng();
-        RngCore::fill_bytes(&mut rng, &mut seed);
+        thread_rng().fill(&mut seed);
         let pubkeys: Vec<*const ffi::PublicKey> = pubkeys.into_iter().map(|p| p.as_ptr()).collect();
         let pubkeys = &pubkeys[..];
         unsafe {
@@ -350,7 +352,7 @@ mod tests {
     };
     use ffi;
     use key::{PublicKey, SecretKey};
-    use rand::{thread_rng, RngCore};
+    use rand::{prelude::thread_rng, Rng};
     use ContextFlag;
     use {AggSigPartialSignature, Message, Signature};
 
@@ -377,8 +379,7 @@ mod tests {
         }
 
         let mut msg = [0u8; 32];
-        let mut rng = thread_rng();
-        RngCore::fill_bytes(&mut rng, &mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
         let mut partial_sigs: Vec<AggSigPartialSignature> = vec![];
         for i in 0..numkeys {
@@ -426,8 +427,7 @@ mod tests {
         );
 
         let mut msg = [0u8; 32];
-        let mut rng = thread_rng();
-        RngCore::fill_bytes(&mut rng, &mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
         let sig = sign_single(&secp, &msg, &sk, None, None, None, None, None).unwrap();
 
@@ -440,8 +440,7 @@ mod tests {
         assert!(result == true);
 
         let mut msg = [0u8; 32];
-        let mut rng = thread_rng();
-        RngCore::fill_bytes(&mut rng, &mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
         println!(
             "Verifying aggsig single: {:?}, msg: {:?}, pk:{:?}",
@@ -453,8 +452,7 @@ mod tests {
 
         // test optional extra key
         let mut msg = [0u8; 32];
-        let mut rng = thread_rng();
-        RngCore::fill_bytes(&mut rng, &mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
         let (sk_extra, pk_extra) = secp.generate_keypair(&mut thread_rng()).unwrap();
         let sig = sign_single(&secp, &msg, &sk, None, Some(&sk_extra), None, None, None).unwrap();
@@ -473,8 +471,7 @@ mod tests {
         );
 
         let mut msg = [0u8; 32];
-        let mut rng = thread_rng();
-        RngCore::fill_bytes(&mut rng, &mut msg);
+        thread_rng().fill(&mut msg);
         let msg = Message::from_slice(&msg).unwrap();
         let sig = sign_single(&secp, &msg, &sk, None, None, None, None, None).unwrap();
 
@@ -565,8 +562,7 @@ mod tests {
 
             // Random message
             let mut msg = [0u8; 32];
-            let mut rng = thread_rng();
-            RngCore::fill_bytes(&mut rng, &mut msg);
+            thread_rng().fill(&mut msg);
             let msg = Message::from_slice(&msg).unwrap();
 
             // Add public keys (for storing in e)

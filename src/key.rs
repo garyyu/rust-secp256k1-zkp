@@ -18,7 +18,7 @@
 use arrayvec::ArrayVec;
 use rand::Rng;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
-use serialize::{hex::ToHex, Decodable, Decoder, Encodable, Encoder};
+use serialize::{Decodable, Decoder, Encodable, Encoder};
 use std::marker;
 
 use super::Error::{self, IncapableContext, InvalidPublicKey, InvalidSecretKey};
@@ -402,7 +402,7 @@ mod test {
     use super::{PublicKey, SecretKey};
 
     use self::rand_core::impls;
-    use rand::{thread_rng, Error, RngCore};
+    use rand::{prelude::thread_rng, Error, RngCore};
 
     #[test]
     fn skey_from_slice() {
@@ -730,7 +730,7 @@ mod test {
             fn fill_bytes(&mut self, dest: &mut [u8]) {
                 impls::fill_bytes_via_next(self, dest)
             }
-            fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error> {
+            fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), Error> {
                 unimplemented!()
             }
         }
@@ -758,7 +758,7 @@ mod test {
             fn fill_bytes(&mut self, dest: &mut [u8]) {
                 impls::fill_bytes_via_next(self, dest)
             }
-            fn try_fill_bytes(&mut self, dest: &mut [u8]) -> Result<(), Error> {
+            fn try_fill_bytes(&mut self, _dest: &mut [u8]) -> Result<(), Error> {
                 unimplemented!()
             }
         }
