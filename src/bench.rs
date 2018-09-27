@@ -169,6 +169,57 @@ mod tests {
             dur_ms, LENGTH
         );
     }
+    #[test]
+    fn bench_aggsig_signcheck_efficiency() {
+        const SC_LENGTH: usize = 100_000;
+
+        let secp = Secp256k1::with_caps(ContextFlag::Full);
+        let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        let mut msg = [0u8; 32];
+        thread_rng().fill(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+
+        let secnonce = export_secnonce_single(&secp).unwrap();
+        let pubnonce = PublicKey::from_secret_key(&secp, &secnonce).unwrap();
+        let (sk_extra, pk_extra) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        let start = Utc::now().timestamp_nanos();
+
+        let mut ok_count = 0;
+        for _ in 1..SC_LENGTH + 1 {
+            let sig = sign_single(
+                &secp,
+                &msg,
+                &sk,
+                Some(&secnonce),
+                Some(&sk_extra),
+                Some(&pubnonce),
+                Some(&pk),
+                Some(&pubnonce),
+            ).unwrap();
+            if true == verify_single(
+                &secp,
+                &sig,
+                &msg,
+                Some(&pubnonce),
+                &pk,
+                Some(&pk),
+                Some(&pk_extra),
+                false,
+            ) {
+                ok_count += 1;
+            }
+        }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin - start) as f64 * NANO_TO_MILLIS;
+
+        println!("aggsig check ok:\t{}/{}", ok_count, SC_LENGTH);
+        println!(
+            "spent time:\t{:.2?}ms/({} sign+verify)",
+            dur_ms, SC_LENGTH
+        );
+    }
 
     #[test]
     fn bench_bullet_proof_wt_extra() {

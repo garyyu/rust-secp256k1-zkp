@@ -53,13 +53,13 @@ use std::{error, fmt, ops, ptr};
 #[macro_use]
 mod macros;
 pub mod aggsig;
+pub mod bench;
 pub mod constants;
+pub mod demo;
 pub mod ecdh;
 pub mod ffi;
 pub mod key;
 pub mod pedersen;
-pub mod bench;
-pub mod demo;
 
 /// A tag used for recovering the public key from a compact signature
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]

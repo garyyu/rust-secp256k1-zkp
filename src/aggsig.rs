@@ -59,10 +59,6 @@ pub fn export_secnonce_single(secp: &Secp256k1) -> Result<SecretKey, Error> {
 /// secnonce: if Some(SecretKey), the secret nonce to use. If None, generate a nonce
 /// pubnonce: if Some(PublicKey), overrides the public nonce to encode as part of e
 /// final_nonce_sum: if Some(PublicKey), overrides the public nonce to encode as part of e
-#[deprecated(
-    since = "0.1.0",
-    note = "All aggsig-related api functions need review and are subject to change."
-)]
 pub fn sign_single(
     secp: &Secp256k1,
     msg: &Message,
@@ -458,6 +454,44 @@ mod tests {
         let sig = sign_single(&secp, &msg, &sk, None, Some(&sk_extra), None, None, None).unwrap();
         let result = verify_single(&secp, &sig, &msg, None, &pk, None, Some(&pk_extra), false);
         assert!(result == true);
+    }
+
+    #[test]
+    fn test_aggsig_v2_single() {
+        let secp = Secp256k1::with_caps(ContextFlag::Full);
+        let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();
+
+        println!(
+            "Performing aggsig single context with seckey. keypair:\n\t{:?}\n\t{:?}",
+            sk, pk
+        );
+
+        // test optional extra key and public key for e
+        let mut msg = [0u8; 32];
+        thread_rng().fill(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+        let (sk_extra, pk_extra) = secp.generate_keypair(&mut thread_rng()).unwrap();
+        let sig = sign_single(
+            &secp,
+            &msg,
+            &sk,
+            None,
+            Some(&sk_extra),
+            None,
+            Some(&pk),
+            None,
+        ).unwrap();
+        let result = verify_single(
+            &secp,
+            &sig,
+            &msg,
+            None,
+            &pk,
+            Some(&pk),
+            Some(&pk_extra),
+            false,
+        );
+        assert_eq!(result, true);
     }
 
     #[test]

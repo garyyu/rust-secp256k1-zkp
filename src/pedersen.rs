@@ -103,9 +103,9 @@ impl Commitment {
                 commit.as_mut_ptr(),
                 pubkey.as_ptr(),
             ) == 1
-                {
-                    Ok(Commitment(commit))
-                } else {
+            {
+                Ok(Commitment(commit))
+            } else {
                 Err(InvalidPublicKey)
             }
         }
@@ -829,7 +829,6 @@ impl Secp256k1 {
             plen: plen as usize,
         }
     }
-
 
     /// Verify with bullet proof that a committed value is positive
     pub fn verify_bullet_proof(
