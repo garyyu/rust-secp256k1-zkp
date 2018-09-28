@@ -17,6 +17,7 @@
 //! # Pedersen commitments and related range proofs
 
 use libc::size_t;
+use serialize::hex::ToHex;
 use std::cmp::min;
 use std::fmt;
 use std::mem;
@@ -1010,7 +1011,6 @@ impl Secp256k1 {
             Err(Error::InvalidRangeProof)
         }
     }
-
 
     /// Verify with bullet proof that a committed value is positive
     pub fn verify_bullet_proof_agg(
