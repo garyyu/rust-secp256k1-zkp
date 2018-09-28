@@ -1,8 +1,5 @@
-// Bitcoin secp256k1 bindings
-// Written in 2014 by
-//   Dawid Ciężarkiewicz
-//   Andrew Poelstra
-// 2017 The grin developers
+// Rust secp256k1 bindings for aggsig functions
+// 2018 The Grin developers
 //
 // To the extent possible under law, the author(s) have dedicated all
 // copyright and related and neighboring rights to this software to
@@ -18,13 +15,13 @@
 
 use ffi;
 use key::{PublicKey, SecretKey};
-use rand::{prelude::thread_rng, Rng};
+use rand::{thread_rng, Rng};
 use std::ptr;
 use Secp256k1;
 use {AggSigPartialSignature, Error, Message, Signature};
 
 /// The 256 bits 0
-const ZERO_256: [u8; 32] = [
+pub const ZERO_256: [u8; 32] = [
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 ];
 
@@ -48,6 +45,32 @@ pub fn export_secnonce_single(secp: &Secp256k1) -> Result<SecretKey, Error> {
         return Err(Error::InvalidSignature);
     }
     Ok(return_key)
+}
+
+// This is a macro that check zero public key
+macro_rules! is_zero_pubkey {
+    (reterr => $e:expr) => {
+        match $e {
+            Some(n) => {
+                if (n.0).0.starts_with(&ZERO_256) {
+                    return Err(Error::InvalidPublicKey);
+                }
+                n.as_ptr()
+            }
+            None => ptr::null(),
+        }
+    };
+    (retfalse => $e:expr) => {
+        match $e {
+            Some(n) => {
+                if (n.0).0.starts_with(&ZERO_256) {
+                    return false;
+                }
+                n.as_ptr()
+            }
+            None => ptr::null(),
+        }
+    };
 }
 
 /// Single-Signer (plain old Schnorr, sans-multisig) signature creation
@@ -78,25 +101,16 @@ pub fn sign_single(
         None => ptr::null(),
     };
 
-    let pubnonce = match pubnonce {
-        Some(n) => n.as_ptr(),
-        None => ptr::null(),
-    };
+    let pubnonce = is_zero_pubkey!(reterr => pubnonce);
 
     let extra = match extra {
         Some(e) => e.as_ptr(),
         None => ptr::null(),
     };
 
-    let final_nonce_sum = match final_nonce_sum {
-        Some(n) => n.as_ptr(),
-        None => ptr::null(),
-    };
+    let final_nonce_sum = is_zero_pubkey!(reterr => final_nonce_sum);
 
-    let pe = match pubkey_for_e {
-        Some(n) => n.as_ptr(),
-        None => ptr::null(),
-    };
+    let pe = is_zero_pubkey!(reterr => pubkey_for_e);
 
     let retval = unsafe {
         ffi::secp256k1_aggsig_sign_single(
@@ -137,27 +151,18 @@ pub fn verify_single(
     extra_pubkey: Option<&PublicKey>,
     is_partial: bool,
 ) -> bool {
-    let pubnonce = match pubnonce {
-        Some(n) => n.as_ptr(),
-        None => ptr::null(),
-    };
+    let pubnonce = is_zero_pubkey!(retfalse => pubnonce);
 
-    let pe = match pubkey_total_for_e {
-        Some(n) => n.as_ptr(),
-        None => ptr::null(),
-    };
+    let pe = is_zero_pubkey!(retfalse => pubkey_total_for_e);
 
-    let extra = match extra_pubkey {
-        Some(e) => e.as_ptr(),
-        None => ptr::null(),
-    };
+    let extra = is_zero_pubkey!(retfalse => extra_pubkey);
 
     let is_partial = match is_partial {
         true => 1,
         false => 0,
     };
 
-    if (sig.0).0.ends_with(&ZERO_256) || (pubkey.0).0.starts_with(&ZERO_256) {
+    if (sig.0).0.starts_with(&ZERO_256) || (pubkey.0).0.starts_with(&ZERO_256) {
         return false;
     }
 
@@ -348,7 +353,7 @@ mod tests {
     };
     use ffi;
     use key::{PublicKey, SecretKey};
-    use rand::{prelude::thread_rng, Rng};
+    use rand::{thread_rng, Rng};
     use ContextFlag;
     use {AggSigPartialSignature, Message, Signature};
 
@@ -572,6 +577,37 @@ mod tests {
         let result = verify_single(&secp, &sig, &msg, None, &corrupted_pk, None, None, false);
         println!("Signature verification single (correct): {}", result);
         assert!(result == false);
+
+        // more tests on other parameters
+        let zero_pk = PublicKey::new();
+        let result = verify_single(
+            &secp,
+            &sig,
+            &msg,
+            Some(&zero_pk),
+            &zero_pk,
+            Some(&zero_pk),
+            Some(&zero_pk),
+            false,
+        );
+        assert!(result == false);
+
+        let mut msg = [0u8; 32];
+        thread_rng().fill(&mut msg);
+        let msg = Message::from_slice(&msg).unwrap();
+        if sign_single(
+            &secp,
+            &msg,
+            &sk,
+            None,
+            None,
+            Some(&zero_pk),
+            Some(&zero_pk),
+            Some(&zero_pk),
+        ).is_ok()
+        {
+            panic!("sign_single should fail on zero public key, but not!");
+        }
     }
 
     #[test]
