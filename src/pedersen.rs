@@ -38,7 +38,9 @@ use serde::{de, ser};
 
 const MAX_WIDTH: usize = 1 << 20;
 const SCRATCH_SPACE_SIZE: size_t = 256 * MAX_WIDTH;
-const MAX_GENERATORS: size_t = 256;
+const MAX_COMMITS_IN_RANGEPROOF: size_t = 1 << 10;
+const RANGEPROOF_NBITS: size_t = 64;
+const MAX_GENERATORS: size_t = 2 * RANGEPROOF_NBITS * MAX_COMMITS_IN_RANGEPROOF;
 
 /// Shared Bullet Proof Generators (avoid recreating every time)
 static mut SHARED_BULLETGENERATORS: Option<*mut ffi::BulletproofGenerators> = None;
