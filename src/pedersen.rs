@@ -765,7 +765,6 @@ impl Secp256k1 {
                 message_ptr,
             );
 
-            //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, *gens);
             ffi::secp256k1_scratch_space_destroy(scratch);
 
             result == 1
@@ -925,7 +924,7 @@ impl Secp256k1 {
             None => ptr::null(),
         };
 
-        // TODO: expose multi-party support
+        // This api is not for multi-party range proof, so all null for these 5 parameters.
         let tau_x = ptr::null_mut();
         let t_one = ptr::null_mut();
         let t_two = ptr::null_mut();
@@ -957,7 +956,6 @@ impl Secp256k1 {
                 message_ptr,
             );
 
-            //            ffi::secp256k1_bulletproof_generators_destroy(self.ctx, *gens);
             ffi::secp256k1_scratch_space_destroy(scratch);
 
             result == 1
@@ -999,7 +997,6 @@ impl Secp256k1 {
                 extra_data.as_ptr(),
                 extra_data_len as size_t,
             );
-            //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
             ffi::secp256k1_scratch_space_destroy(scratch);
             result == 1
         };
@@ -1023,9 +1020,9 @@ impl Secp256k1 {
     ) -> Result<ProofRange, Error> {
         let n_bits = 64;
 
+        let commit_size = constants::PEDERSEN_COMMITMENT_SIZE;
+        let mut commit_vec = vec![0; commits.len() * commit_size];
         let commit_vec_ptr = if commits.len() > 0 {
-            let commit_size = constants::PEDERSEN_COMMITMENT_SIZE;
-            let mut commit_vec = vec![0; commits.len() * commit_size];
             for i in 0..commits.len() {
                 commit_vec[i * commit_size..(i + 1) * commit_size]
                     .clone_from_slice(&commits[i].0[..]);
@@ -1056,7 +1053,6 @@ impl Secp256k1 {
                 extra_data_ptr,
                 extra_data_len as size_t,
             );
-            //            ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
             ffi::secp256k1_scratch_space_destroy(scratch);
             result == 1
         };
@@ -1137,7 +1133,6 @@ impl Secp256k1 {
                 extra_data_vec.as_ptr(),
                 extra_data_lengths.as_ptr(),
             );
-            //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
             ffi::secp256k1_scratch_space_destroy(scratch);
             result == 1
         };
@@ -1186,7 +1181,6 @@ impl Secp256k1 {
                 extra_data.len() as size_t,
                 message_out.as_mut_ptr(),
             );
-            //			ffi::secp256k1_bulletproof_generators_destroy(self.ctx, gens);
             ffi::secp256k1_scratch_space_destroy(scratch);
             result == 1
         };
