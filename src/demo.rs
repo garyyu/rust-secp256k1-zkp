@@ -853,6 +853,8 @@ mod tests {
     fn test_demo_aggregated_bullet_proof() {
         println!("Demo Bullet Proof Aggregation w/o extra message data...\n");
 
+        println!("MAX_PROOF_SIZE: {}\n", constants::MAX_PROOF_SIZE);
+
         let secp = Secp256k1::with_caps(ContextFlag::Commit);
         let blinds = vec![
             SecretKey::new(&secp, &mut thread_rng()),
