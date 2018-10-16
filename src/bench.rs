@@ -25,7 +25,7 @@ mod tests {
     use ContextFlag;
     use {Message, Secp256k1};
 
-    use bench::tests::chrono::prelude::*;
+    use bench::tests::chrono::prelude::Utc;
 
     use constants;
     use ffi;
