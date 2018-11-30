@@ -18,6 +18,7 @@
 #[cfg(test)]
 mod tests {
     extern crate chrono;
+    extern crate hex;
 
     use aggsig::{
         add_signatures_single, export_secnonce_single, sign_single, verify_single, AggSigContext,
@@ -26,12 +27,67 @@ mod tests {
     use key::{PublicKey, SecretKey, ONE_KEY, ZERO_KEY};
     use pedersen::Commitment;
     use ContextFlag;
-    use {AggSigPartialSignature, Message, Secp256k1};
+    use {AggSigPartialSignature, Message, Signature, Secp256k1};
 
     use demo::tests::chrono::prelude::Utc;
 
     use rand::{thread_rng, Rng};
     const NANO_TO_MILLIS: f64 = 1.0 / 1_000_000.0;
+
+    #[test]
+    fn demo_ecdsa_sign() {
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+
+        let m = hex::decode("d0f756e2d96f49b32579bd9365fde07674629dcab236fd9af8c01085a0cf9201").unwrap();
+
+        // signature
+        let mut msg = [0u8; 32];
+        msg.copy_from_slice(&m);
+        let msg = Message::from_slice(&msg).unwrap();
+
+        let mut secret = SecretKey([0; 32]);
+        thread_rng().fill(&mut secret.0);
+        let pubkey = PublicKey::from_secret_key(&secp, &secret).unwrap();
+
+        let sig = secp.sign(&msg, &secret).unwrap();
+
+        if let Ok(_) = secp.verify(&msg, &sig, &pubkey) {
+            println!("msg={:?}", msg);
+            println!("sig={:?}", sig);
+            println!("ecdsa signature verification OK");
+        } else {
+            println!("ecdsa signature verification NOK");
+        }
+    }
+
+    #[test]
+    fn demo_ecdsa_verify() {
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+
+        let m = hex::decode("d0f756e2d96f49b32579bd9365fde07674629dcab236fd9af8c01085a0cf9201").unwrap();
+        let mut msg = [0u8; 32];
+        msg.copy_from_slice(&m);
+        let msg = Message::from_slice(&msg).unwrap();
+
+        let pk = hex::decode("0411db93e1dcdb8a016b49840f8c53bc1eb68a382e97b1482ecad7b148a6909a5cb2e0eaddfb84ccf9744464f82e160bfa9b8b64f9d4c03f999b8643f656b412a3").unwrap();
+        let mut pubkey = [0u8; 65];
+        pubkey.copy_from_slice(&pk);
+        let pubkey = PublicKey::from_slice(&secp, &pubkey).unwrap();
+
+        let s = hex::decode("99cc0d1f4ed3f1e6d18c130df22fece489b4ab016c33ed53db1ce45880bf4e996633f2e0b12c0e192e73ecf20dd0131a30fa31e54314b2e7e4b57a344f76f2a8").unwrap();
+        let mut sig = [0u8; 64];
+        sig.copy_from_slice(&s);
+        let sig = Signature::from_compact(&secp, &sig).unwrap();
+
+        if let Ok(_) = secp.verify(&msg, &sig, &pubkey) {
+            println!("msg: {:?}", msg);
+            println!("sig: {:?}", sig);
+            println!("pubkey: {:?}", pubkey);
+            println!("ecdsa signature verification OK");
+        } else {
+            println!("ecdsa signature verification NOK");
+        }
+    }
 
     #[test]
     fn test_show_g_and_h() {
