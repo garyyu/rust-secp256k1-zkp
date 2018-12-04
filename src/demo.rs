@@ -1665,7 +1665,7 @@ mod tests {
             }
 
             //--- step 7. Verify s against excess values in final transaction using xG
-            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, None, None, false);
+            let result = verify_single(&secp, &s, &msg, None, &xG, None, None, false);
             if true == result {
                 println!("Signature 's' Verification:\tOK");
             } else {
@@ -1870,7 +1870,7 @@ mod tests {
             }
 
             //--- step 7. Verify s against excess values in final transaction using xG
-            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, None, None, false);
+            let result = verify_single(&secp, &s, &msg, None, &xG, None, None, false);
             if true == result {
                 println!("Signature 's' Verification:\tOK");
             } else {
@@ -2112,7 +2112,7 @@ mod tests {
             }
 
             //--- step 7. Verify s against excess values in final transaction using xG
-            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, None, None, false);
+            let result = verify_single(&secp, &s, &msg, None, &xG, None, None, false);
             if true == result {
                 println!("Signature 's' Verification:\tOK");
             } else {
@@ -2328,7 +2328,7 @@ mod tests {
             }
 
             //--- step 7. Verify s against excess values in final transaction using xG
-            let result = verify_single(&secp, &s, &msg, Some(&nonce_sum), &xG, None, None, false);
+            let result = verify_single(&secp, &s, &msg, None, &xG, None, None, false);
             if true == result {
                 println!("Signature 's' Verification:\tOK");
             } else {
