@@ -373,6 +373,75 @@ impl Secp256k1 {
         }
     }
 
+    /// Calculates the blinding factor q = Hash(m, p*S), used in the non-interactive input commitment q*P+v*H
+    /// Input:
+    ///       m: an unique message to a transaction
+    ///       p: private key
+    ///       S: non-interactive transaction sender's public blinding
+    /// Output:
+    ///       q: Hash(m, p*S)
+    ///
+    pub fn blind_non_interactive_tx(
+        &self,
+        self_seckey: &SecretKey,
+        counterparty_pk: &PublicKey,
+        msg: &Message,
+    ) -> Result<SecretKey, Error> {
+        if self.caps != ContextFlag::Commit {
+            return Err(Error::IncapableContext);
+        }
+        let mut q = [0; 32];
+
+        unsafe {
+            ffi::secp256k1_blind_non_interactive(
+                self.ctx,
+                q.as_mut_ptr(),
+                self_seckey.as_ptr(),
+                counterparty_pk.as_ptr(),
+                msg.as_ptr(),
+            );
+        };
+        Ok(SecretKey(q))
+    }
+
+    /// Creates a pedersen commitment from a value, a sender's private blinding factor (b), a recipient's public key (P),
+    /// and a message (m).
+    /// Note:
+    ///     q = Hash(m, b*P)
+    ///     b*P = b*(p*G) = p*B, and p is recipient's private key, B is b*G.
+    ///     r*G = q*P = q*p*G = (q*p)*G, and q*p is recipient's private blinding for this transaction.
+    ///     Only recipient know the output blinding and can spend this output.
+    /// Output:
+    ///   commit: r*G + v*H = q*P + v*H
+    ///   q: = Hash(m, b*P)
+    pub fn tx_commit(
+        &self,
+        value: u64,
+        blind: &SecretKey,
+        receiver_pk: &PublicKey,
+        msg: &Message,
+    ) -> Result<(Commitment,SecretKey), Error> {
+        if self.caps != ContextFlag::Commit {
+            return Err(Error::IncapableContext);
+        }
+        let mut commit = [0; 33];
+        let mut q = [0; 32];
+
+        unsafe {
+            ffi::secp256k1_tx_pedersen_commit(
+                self.ctx,
+                commit.as_mut_ptr(),
+                q.as_mut_ptr(),
+                blind.as_ptr(),
+                receiver_pk.as_ptr(),
+                msg.as_ptr(),
+                value,
+                constants::GENERATOR_H.as_ptr(),
+            );
+        };
+        Ok((Commitment(commit),SecretKey(q)))
+    }
+
     /// Creates a pedersen commitment from a value and a blinding factor
     pub fn commit(&self, value: u64, blind: SecretKey) -> Result<Commitment, Error> {
         if self.caps != ContextFlag::Commit {

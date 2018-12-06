@@ -2358,4 +2358,237 @@ mod tests {
         );
     }
 
+    #[test]
+    #[allow(non_snake_case)]
+    fn demo_non_interactive_tx() {
+        fn commit(value: u64, blinding: SecretKey) -> Commitment {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            secp.commit(value, blinding).unwrap()
+        }
+        fn tx_commit(value: u64, blinding: &SecretKey, receiver_pk: &PublicKey, msg: &Message) -> (Commitment,SecretKey) {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            secp.tx_commit(value, blinding, receiver_pk, msg).unwrap()
+        }
+
+        // Receiver has well known public key P
+        let (recipient_pk, recipient_sk) = {
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+            let p = SecretKey::new(&secp, &mut thread_rng());
+            let P = PublicKey::from_secret_key(&secp, &p).unwrap();
+            (P,p)
+        };
+        println!("\nCT Non-Interactive Tx Procedure: Recipient Public Key: {:?}", recipient_pk);
+
+        println!("\nCT Non-Interactive Tx Procedure: Sending Tx (on sender side)");
+
+        let sender_sk; // private key of sender
+
+        let (input, change_output, amount, output, sender_pk, sS, msg, excess) = {
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+            let in_amount: u64 = 10 * 1_000_000_000;
+            let out_amount: u64 = 8 * 1_000_000_000;
+
+            //--- Set lock_height for transaction kernel (current chain height)
+            let lock_height: u64 = 10_000; // just for example
+
+            //--- Select inputs using desired selection strategy
+            //simulate an UTXO as the input
+            let blinding_input = SecretKey::new(&secp, &mut thread_rng());
+            let input = commit(in_amount, blinding_input);
+
+            //--- Calculate fee: tx_weight * 1_000_000 nG
+            let fee: u64 = 8 * 1_000_000;
+
+            //--- Create change_output
+            //--- Select blinding factor for change_output
+            let blinding_change_output = SecretKey::new(&secp, &mut thread_rng());
+            let change_output = commit(in_amount - out_amount - fee, blinding_change_output);
+
+            //--- Calculate total blinding excess sum xS1 (private scalar), for all inputs(-) and outputs(+)
+            let xS1 = secp
+                .blind_sum(vec![blinding_change_output], vec![blinding_input])
+                .unwrap();
+
+//            //--- Select a random nonce kS (private scalar)
+//            let kS = SecretKey::new(&secp, &mut thread_rng());
+//
+            //--- Subtract random value oS (kernel offset) from xS1. Calculate xS = xS1 - oS
+            let oS = SecretKey::new(&secp, &mut thread_rng());
+            let xS = secp.blind_sum(vec![xS1], vec![oS]).unwrap();
+
+            sender_sk = xS; // sender's private key for this transaction
+
+            //--- Multiply xS and kS by generator G to create public curve points xSG and kSG
+            let xSG = PublicKey::from_secret_key(&secp, &xS).unwrap();
+
+            //--- Create receiver_output
+            //--- Calculate blinding factor for receiver_output xR (private scalar)
+            //---   q = Hash(m, xS*P), ror*G = q*P = (q*p)*G. So, xR = q*p and only recipient know it.
+            let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
+            let (output,q) = tx_commit(out_amount, &sender_sk, &recipient_pk, &msg);
+
+            //--- Calculate xRG = xR*G = q*P
+            let mut xRG = recipient_pk;
+            assert!(xRG.mul_assign(&secp, &q).is_ok());
+
+            //--- Verify the balance
+            let xG = PublicKey::from_combination(&secp, vec![&xRG, &xSG]).unwrap();
+            let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
+            if true == secp.verify_commit_sum(
+                vec![
+                    output,
+                    change_output,
+                    commit(fee, secp.blind_sum(vec![], vec![oS]).unwrap()),
+                ],
+                vec![input, excess_commit],
+            ) {
+                println!("\ntotal sum balance OK:\toutput + change_output + (-offset*G + fee*H) = input + excess");
+            } else {
+                println!("\ntotal sum balance NOK:\toutput + change_output + (-offset*G + fee*H) != input + excess");
+            }
+
+            //--- Signature
+            let sS = sign_single(
+                &secp,
+                &msg,
+                &xS,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ).unwrap();
+
+            //--- Done
+            (
+                input,
+                change_output,
+                out_amount,
+                output,
+                xSG,
+                sS,
+                msg,
+                excess_commit
+            )
+        };
+
+        println!("\ninput:  \t{:?}\nchange: \t{:?}\noutput: \t{:?}\nsender pk: \t{:?}\nreceiver pk: \t{:?}",
+                 input, change_output, output, sender_pk, recipient_pk);
+
+        println!("\nsender signature: {:?}", sS);
+        let result = {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            verify_single(&secp, &sS, &msg, None, &sender_pk, None, None, false)
+        };
+        if true == result {
+            println!("Signature 'sS' Verification:\tOK");
+        } else {
+            println!("Signature 'sS' Verification:\tNOK");
+        }
+
+        println!("\nCT Non-Interactive Tx Procedure: Sending Tx Done.");
+
+        println!("\n-------------------------------------------------\n");
+
+        println!("\nCT Non-Interactive Tx Procedure: Receiving Tx (on receiver side)");
+
+        let (sR, xG, msg, input, output, excess) = {
+            let secp = Secp256k1::with_caps(ContextFlag::Full);
+
+            //--- Calculate blinding factor of input
+            //---   q = Hash(m, p*A), roi*G = q*P = (q*p)*G. So, roi = q*p
+            //---       A is the sender's public key
+            let mut roi = {
+                let secp = Secp256k1::with_caps(ContextFlag::Commit);
+                secp.blind_non_interactive_tx(&recipient_sk, &sender_pk, &msg).unwrap()
+            };
+            assert!(roi.mul_assign(&secp, &recipient_sk).is_ok());
+
+            //--- Double check: roi*G + sender_pk = public_excess
+            let roiG = PublicKey::from_secret_key(&secp, &roi).unwrap();
+            let xG = PublicKey::from_combination(&secp, vec![&roiG, &sender_pk]).unwrap();
+            let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
+            assert_eq!(excess_commit, excess);
+
+            //--- Now creating the new transaction to spend this roi*G+amount*H
+
+            let in_amount: u64 = amount;
+            let input = output;
+
+            //--- Calculate fee: tx_weight * 1_000_000 nG
+            let fee: u64 = 1 * 1_000_000;
+            let out_amount: u64 = in_amount - fee;
+
+            //--- Set lock_height for transaction kernel (current chain height)
+            let lock_height: u64 = 10_001; // just for example
+
+            //--- Calculate total blinding excess sum xS1 (private scalar), for all inputs(-) and outputs(+)
+            let xS1 = secp
+                .blind_sum(vec![], vec![roi])
+                .unwrap();
+
+            //--- Subtract random value oS (kernel offset) from xS1. Calculate xS = xS1 - oS
+            let oS = SecretKey::new(&secp, &mut thread_rng());
+            let xS = secp.blind_sum(vec![xS1], vec![oS]).unwrap();
+            let xR = SecretKey::new(&secp, &mut thread_rng());
+
+            //--- Multiply xS and xR by generator G to create public curve points xSG and xRG
+            let xSG = PublicKey::from_secret_key(&secp, &xS).unwrap();
+            let xRG = PublicKey::from_secret_key(&secp, &xR).unwrap();
+
+            //--- Create receiver_output
+            let output= commit(out_amount, xR);
+
+            //--- Verify the balance
+            let xG = PublicKey::from_combination(&secp, vec![&xRG, &xSG]).unwrap();
+            let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();
+            if true == secp.verify_commit_sum(
+                vec![
+                    output,
+                    commit(fee, secp.blind_sum(vec![], vec![oS]).unwrap()),
+                ],
+                vec![input, excess_commit],
+            ) {
+                println!("\ntotal sum balance OK:\toutput + (-offset*G + fee*H) = input + excess");
+            } else {
+                println!("\ntotal sum balance NOK:\toutput + (-offset*G + fee*H) != input + excess");
+            }
+
+            //--- Signature
+            let mut xSR = xS;
+            assert!(xSR.add_assign(&secp, &xR).is_ok());
+            let msg = Message::from_slice(&kernel_sig_msg(fee, lock_height)).unwrap();
+            let sR = sign_single(
+                &secp,
+                &msg,
+                &xSR,
+                None,
+                None,
+                None,
+                None,
+                None,
+            ).unwrap();
+
+            //--- Done
+            (sR, xG, msg, input, output, excess_commit)
+        };
+
+        println!("\ninput:  \t{:?}\noutput: \t{:?}\nexcess: \t{:?}",
+                 input, output, excess);
+
+        println!("\nreceiver signature: {:?}", sR);
+        let result = {
+            let secp = Secp256k1::with_caps(ContextFlag::Commit);
+            verify_single(&secp, &sR, &msg, None, &xG, None, None, false)
+        };
+        if true == result {
+            println!("Signature 'sR' Verification:\tOK");
+        } else {
+            println!("Signature 'sR' Verification:\tNOK");
+        }
+
+        println!("\nCT Non-Interactive Tx Procedure: Receiving Tx Done.");
+    }
+
 }

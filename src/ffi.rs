@@ -436,6 +436,40 @@ extern "C" {
         scalar: *const c_uchar,
     ) -> c_int;
 
+    // Calculates the blinding factor q = Hash(m, p*S), used in the non-interactive input commitment q*P+v*H
+    // Input:
+    //       m: an unique message to a transaction
+    //       p: private key
+    //       S: non-interactive transaction sender's public blinding
+    // Output:
+    //       q: Hash(m, p*S)
+    //
+    pub fn secp256k1_blind_non_interactive(
+        ctx: *const Context,
+        q: *mut c_uchar,
+        self_seckey32: *const c_uchar,
+        counterparty_pk: *const PublicKey,
+        msg32: *const c_uchar,
+    ) -> c_int;
+
+    // Creates a pedersen commitment from a value, a sender's private blinding factor (b), a recipient's public key (P),
+    // and an unique message (m).
+    // Output:
+    //      commit:     commit = r*G + v*H = q*P + v*H
+    //      q:          q = Hash(m, b*P)
+    //
+    // The commitment is 33 bytes, the blinding factor is 32 bytes.
+    pub fn secp256k1_tx_pedersen_commit(
+        ctx: *const Context,
+        commit: *mut c_uchar,
+        q: *mut c_uchar,
+        blind: *const c_uchar,
+        receiver_pk: *const PublicKey,
+        msg32: *const c_uchar,
+        value: uint64_t,
+        value_gen: *const c_uchar,
+    ) -> c_int;
+
     // Generates a pedersen commitment: *commit = blind * G + value * G2.
     // The commitment is 33 bytes, the blinding factor is 32 bytes.
     pub fn secp256k1_pedersen_commit(
