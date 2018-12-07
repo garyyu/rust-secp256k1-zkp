@@ -368,6 +368,13 @@ extern "C" {
         seed32: *const c_uchar,
     ) -> c_int;
 
+    pub fn secp256k1_aggsig_get_pubnonce_from_signature(
+        cx: *const Context,
+        sig: *const Signature,
+        pubnonce: *mut PublicKey,
+        use_neg: c_uint,
+    ) -> c_int;
+
     pub fn secp256k1_aggsig_verify_single(
         cx: *const Context,
         sig: *const Signature,
@@ -386,7 +393,7 @@ extern "C" {
         num_sigs: size_t,
         pubnonce_total: *const PublicKey,
     ) -> c_int;
-    // EC
+
     pub fn secp256k1_ec_seckey_verify(cx: *const Context, sk: *const c_uchar) -> c_int;
 
     pub fn secp256k1_ec_pubkey_create(
@@ -394,9 +401,6 @@ extern "C" {
         pk: *mut PublicKey,
         sk: *const c_uchar,
     ) -> c_int;
-
-    //TODO secp256k1_ec_privkey_export
-    //TODO secp256k1_ec_privkey_import
 
     pub fn secp256k1_ec_privkey_tweak_add(
         cx: *const Context,

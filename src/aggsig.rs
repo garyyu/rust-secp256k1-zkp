@@ -185,6 +185,40 @@ pub fn verify_single(
     }
 }
 
+/// Get R from Signature
+/// Returns: Ok(PublicKey) on success
+/// Input:
+///      sig: The signature
+pub fn get_pubnonce_from_signature(
+    secp: &Secp256k1,
+    sig: &Signature,
+    use_neg: bool,
+) -> Result<PublicKey, Error> {
+    let mut pubnonce = PublicKey::new();
+
+    if (sig.0).0.starts_with(&ZERO_256) {
+        return Err(Error::InvalidSignature);
+    }
+
+    let use_neg = match use_neg {
+        true => 1,
+        false => 0,
+    };
+
+    let retval = unsafe {
+        ffi::secp256k1_aggsig_get_pubnonce_from_signature(
+            secp.ctx,
+            sig.as_ptr(),
+            pubnonce.as_mut_ptr(),
+            use_neg,
+        )
+    };
+    match retval {
+        1 => Ok(pubnonce),
+        _ => Err(Error::InvalidSignature),
+    }
+}
+
 /// Single-Signer addition of Signatures
 /// Returns: Ok(Signature) on success
 /// In:
