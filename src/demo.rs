@@ -100,6 +100,47 @@ mod tests {
     }
 
     #[test]
+    fn test_show_j() {
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let pubkey1 = Commitment(constants::GENERATOR_J).to_pubkey(&secp).unwrap();
+        println!("J in (X,Y) coordinates form:\n\t{:?}\n\nJ in compressed form:\n\t{:02x?}\n",
+                 pubkey1,
+                 Commitment(constants::GENERATOR_J),
+        );
+        let pubkey2 = PublicKey::from_slice(&secp, &constants::GENERATOR_PUB_J).unwrap();
+        println!("J in (X,Y) coordinates form:\n\t{:?}\n\n",
+                 pubkey2,
+        );
+        assert_eq!(pubkey1, pubkey2);
+
+        println!("\n----\n");
+
+        let pubkey1 = Commitment(constants::GENERATOR_G).to_pubkey(&secp).unwrap();
+        println!("G in (X,Y) coordinates form:\n\t{:?}\n\nG in compressed form:\n\t{:02x?}\n",
+                 pubkey1,
+                 Commitment(constants::GENERATOR_G),
+        );
+        let pubkey2 = PublicKey::from_slice(&secp, &constants::GENERATOR_PUB_G).unwrap();
+        println!("G in (X,Y) coordinates form:\n\t{:?}\n\n",
+                 pubkey2,
+        );
+        assert_eq!(pubkey1, pubkey2);
+
+        println!("\n----\n");
+
+        let pubkey1 = Commitment(constants::GENERATOR_H).to_pubkey(&secp).unwrap();
+        println!("H in (X,Y) coordinates form:\n\t{:?}\n\nH in compressed form:\n\t{:02x?}\n",
+                 pubkey1,
+                 Commitment(constants::GENERATOR_H),
+        );
+        let pubkey2 = PublicKey::from_slice(&secp, &constants::GENERATOR_PUB_H).unwrap();
+        println!("H in (X,Y) coordinates form:\n\t{:?}\n\n",
+                 pubkey2,
+        );
+        assert_eq!(pubkey1, pubkey2);
+    }
+
+    #[test]
     fn test_pedersen_zero_r() {
         fn commit(value: u64) -> Commitment {
             let secp = Secp256k1::with_caps(ContextFlag::Commit);
