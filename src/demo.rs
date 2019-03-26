@@ -1129,6 +1129,74 @@ mod tests {
     }
 
     #[test]
+    fn test_demo_aggregated_bullet_proof_124() {
+        println!("Demo Bullet Proof Aggregation w/o extra message data...\n");
+
+        println!("MAX_PROOF_SIZE: {}\n", constants::MAX_PROOF_SIZE);
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let mut blinds = vec![
+            SecretKey::new(&secp, &mut thread_rng()),
+        ];
+        let nonce = SecretKey::new(&secp, &mut thread_rng());
+        let mut values = vec![12345678];
+        let mut commits = vec![
+            secp.commit(values[0], blinds[0]).unwrap(),
+        ];
+        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce.clone(), None, None);
+
+        println!(
+            "Values:\t\t{:#?}\nBlinds:\t{:#?}\nCommits:\t{:#?}\n\nBullet Proof:\t{:?}",
+            values, blinds, commits, bullet_proof,
+        );
+
+        let proof_range = secp
+            .verify_bullet_proof_agg(commits.clone(), bullet_proof, None)
+            .unwrap();
+        println!("\nVerification:\t{:#?}", proof_range);
+
+        //----
+
+        println!("Demo Bullet Proof Aggregation for 2 commits...\n");
+
+        blinds.push( SecretKey::new(&secp, &mut thread_rng()) );
+        values.push(87654321);
+        commits.push(secp.commit(values[1], blinds[1]).unwrap());
+        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce.clone(), None, None);
+
+        println!(
+            "Values:\t\t{:#?}\nBlinds:\t{:#?}\nCommits:\t{:#?}\n\nBullet Proof:\t{:?}",
+            values, blinds, commits, bullet_proof,
+        );
+
+        let proof_range = secp.verify_bullet_proof_agg(commits.clone(), bullet_proof, None);
+        println!("\nVerification:\t{:#?}", proof_range);
+
+        //----
+
+        println!("Demo Bullet Proof Aggregation for 4 commits...\n");
+
+        for _ in 0..2 {
+            blinds.push( SecretKey::new(&secp, &mut thread_rng()) );
+        }
+        for i in 0..2 {
+            values.push(10001+i);
+        }
+        for i in 2..4 {
+            commits.push(secp.commit(values[i], blinds[i]).unwrap());
+        }
+        let bullet_proof = secp.bullet_proof_agg(values.clone(), blinds.clone(), nonce.clone(), None, None);
+
+        println!(
+            "Values:\t\t{:#?}\nBlinds:\t{:#?}\nCommits:\t{:#?}\n\nBullet Proof:\t{:?}",
+            values, blinds, commits, bullet_proof,
+        );
+
+        let proof_range = secp.verify_bullet_proof_agg(commits.clone(), bullet_proof, None);
+        println!("\nVerification:\t{:#?}", proof_range);
+    }
+
+    #[test]
     fn demo_aggsig_single() {
         let secp = Secp256k1::with_caps(ContextFlag::Full);
         let (sk, pk) = secp.generate_keypair(&mut thread_rng()).unwrap();

@@ -95,6 +95,14 @@ pub const GENERATOR_H: [u8; 33] = [
 ];
 
 /// Generator J, for switch commitments (as compressed curve point (3))
+/// Alternative-alternative generator for secp256k1.
+/// This is the sha256 of the sha256 of 'g' after DER encoding (without compression),
+/// which happens to be a point on the curve.
+/// sage: gen_h =  hashlib.sha256('0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8'.decode('hex'))
+/// sage: gen_j_input = gen_h.hexdigest()
+/// sage: gen_j =  hashlib.sha256(gen_j_input.decode('hex'))
+/// sage: G3 = EllipticCurve ([F (0), F (7)]).lift_x(int(gen_j.hexdigest(),16))
+/// sage: '%x %x'%G3.xy()
 pub const GENERATOR_J: [u8; 33] = [
     0x11, 0xb8, 0x60, 0xf5, 0x67, 0x95, 0xfc, 0x03, 0xf3, 0xc2, 0x16, 0x85, 0x38, 0x3d, 0x1b, 0x5a,
     0x2f, 0x29, 0x54, 0xf4, 0x9b, 0x7e, 0x39, 0x8b, 0x8d, 0x2a, 0x01, 0x93, 0x93, 0x36, 0x21, 0x15,
