@@ -19,6 +19,17 @@ This Rust library:
 * implements deterministic nonce generation via RFC6979
 * implements many unit tests, adding to those already present in `libsecp256k1`
 * makes no allocations (except in unit tests) for efficiency and use in freestanding implementations
+* including: schnorr signature, pedersen commitment, bulletproof
+
+### Build and Run
+
+```
+git clone --recursive https://github.com/garyyu/rust-secp256k1-zkp.git
+cd rust-secp256k1-zkp
+cargo build --release
+cargo test --release -- demo_ecdsa_sign --nocapture
+```
+replace `demo_ecdsa_sign` with any demo/test as you want.
 
 ### Documents
 * [Rustdoc of crate secp256k1](https://www.wpsoftware.net/rustdoc/secp256k1/)
