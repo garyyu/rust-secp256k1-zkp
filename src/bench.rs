@@ -497,4 +497,23 @@ mod tests {
         );
     }
 
+    #[test]
+    fn bench_pedersen_commitment() {
+        const PC_LENGTH: usize = 1_000;
+
+        let secp = Secp256k1::with_caps(ContextFlag::Commit);
+        let mut value = 12345678;
+
+        let start = Utc::now().timestamp_nanos();
+        for _ in 1..PC_LENGTH + 1 {
+            let blinding = SecretKey::new(&secp, &mut thread_rng());
+            let _commit = secp.commit(value, blinding).unwrap();
+            value += 1
+        }
+        let fin = Utc::now().timestamp_nanos();
+        let dur_ms = (fin - start) as f64 * NANO_TO_MILLIS;
+
+        println!("spent time:\t{}ms/({} pedersen commitment)", dur_ms, PC_LENGTH);
+    }
+
 }
