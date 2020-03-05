@@ -2773,7 +2773,7 @@ mod tests {
                 .unwrap();
 
             //--- Calculate public excess: xG = x*G
-            let mut xG = PublicKey::from_secret_key(&secp, &x).unwrap();
+            let xG = PublicKey::from_secret_key(&secp, &x).unwrap();
 
             //--- Verify the balance
             let excess_commit = Commitment::from_pubkey(&secp, &xG).unwrap();

@@ -282,7 +282,7 @@ impl Decodable for PublicKey {
                 unsafe {
                     use std::mem;
                     let mut ret: [u8; constants::UNCOMPRESSED_PUBLIC_KEY_SIZE] =
-                        mem::uninitialized();
+                        mem::MaybeUninit::uninit().assume_init();
                     for i in 0..len {
                         ret[i] = d.read_seq_elt(i, |d| Decodable::decode(d))?;
                     }
@@ -291,7 +291,7 @@ impl Decodable for PublicKey {
             } else if len == constants::COMPRESSED_PUBLIC_KEY_SIZE {
                 unsafe {
                     use std::mem;
-                    let mut ret: [u8; constants::COMPRESSED_PUBLIC_KEY_SIZE] = mem::uninitialized();
+                    let mut ret: [u8; constants::COMPRESSED_PUBLIC_KEY_SIZE] = mem::MaybeUninit::uninit().assume_init();
                     for i in 0..len {
                         ret[i] = d.read_seq_elt(i, |d| Decodable::decode(d))?;
                     }
@@ -345,7 +345,7 @@ impl<'de> Deserialize<'de> for PublicKey {
                 unsafe {
                     use std::mem;
                     let mut ret: [u8; constants::UNCOMPRESSED_PUBLIC_KEY_SIZE] =
-                        mem::uninitialized();
+                        mem::MaybeUninit::uninit().assume_init();
 
                     let mut read_len = 0;
                     while read_len < constants::UNCOMPRESSED_PUBLIC_KEY_SIZE {

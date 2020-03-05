@@ -80,7 +80,7 @@ impl Commitment {
 
     /// Uninitialized commitment, use with caution
     unsafe fn blank() -> Commitment {
-        mem::uninitialized()
+        mem::MaybeUninit::<Commitment>::uninit().assume_init()
     }
 
     /// Converts a commitment to a public key
@@ -134,8 +134,7 @@ impl Clone for RangeProof {
     fn clone(&self) -> RangeProof {
         unsafe {
             use std::intrinsics::copy_nonoverlapping;
-            use std::mem;
-            let mut ret: [u8; constants::MAX_PROOF_SIZE] = mem::uninitialized();
+            let mut ret: [u8; constants::MAX_PROOF_SIZE] = mem::MaybeUninit::uninit().assume_init();
             copy_nonoverlapping(
                 self.proof.as_ptr(),
                 ret.as_mut_ptr(),
@@ -173,8 +172,7 @@ impl<'di> de::Visitor<'di> for Visitor {
         V: de::SeqAccess<'di>,
     {
         unsafe {
-            use std::mem;
-            let mut ret: [u8; constants::MAX_PROOF_SIZE] = mem::uninitialized();
+            let mut ret: [u8; constants::MAX_PROOF_SIZE] = mem::MaybeUninit::uninit().assume_init();
             let mut i = 0;
             while let Some(val) = v.next_element()? {
                 ret[i] = val;
@@ -570,7 +568,7 @@ impl Secp256k1 {
         let mut neg = map_vec!(negative, |n| n.as_ptr());
         let mut all = map_vec!(positive, |p| p.as_ptr());
         all.append(&mut neg);
-        let mut ret: [u8; 32] = unsafe { mem::uninitialized() };
+        let mut ret: [u8; 32] = unsafe { mem::MaybeUninit::uninit().assume_init() };
         unsafe {
             assert_eq!(
                 ffi::secp256k1_pedersen_blind_sum(
@@ -696,8 +694,8 @@ impl Secp256k1 {
         nonce: SecretKey,
     ) -> ProofInfo {
         let mut value: u64 = 0;
-        let mut blind: [u8; 32] = unsafe { mem::uninitialized() };
-        let mut message: [u8; constants::PROOF_MSG_SIZE] = unsafe { mem::uninitialized() };
+        let mut blind: [u8; 32] = unsafe { mem::MaybeUninit::uninit().assume_init() };
+        let mut message: [u8; constants::PROOF_MSG_SIZE] = unsafe { mem::MaybeUninit::uninit().assume_init() };
         let mut mlen: usize = constants::PROOF_MSG_SIZE;
         let mut min: u64 = 0;
         let mut max: u64 = 0;
@@ -887,7 +885,7 @@ impl Secp256k1 {
         };
 
         let tau_x = match tau_x {
-            Some(mut n) => n.0.as_mut_ptr(),
+            Some(n) => n.0.as_mut_ptr(),
             None => ptr::null_mut(),
         };
 
